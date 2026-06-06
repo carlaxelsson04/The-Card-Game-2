@@ -898,12 +898,12 @@
                 <div class="toggle-row" id="cuck-toggle-row" style="display:none">
                     <div>
                         <div class="toggle-label">Cuck Rule</div>
-                        <div class="toggle-desc">Vem fick 0 snaps?</div>
+                        <div class="toggle-desc">Vem fick 0 snaps? (välj flera)</div>
                     </div>
                     <div class="toggle" id="ev-cuck" onclick="toggleEvent('cuck')"></div>
                 </div>
                 <div id="ev-cuck-detail" style="display:none" class="mt8">
-                    <div class="input-label">Spelare</div>
+                    <div class="input-label">Spelare (tryck för att markera/avmarkera)</div>
                     <div id="ev-cuck-chips" class="chip-wrap"></div>
                 </div>
             </div>
@@ -969,14 +969,23 @@
         let newSessionPlayers = [];
         let newSessionRules = { hardcore: false, cuck: false };
 
+        const ADMIN_PASSWORD = 'Federak902tety';
+
         let roundState = {
             scores: {},      // playerId → points
             cardCounts: {},  // playerId → number of cards
             knock: false, knockPlayer: null, knockWin: null,
             snapout: false, snapoutPlayer: null,
             ev67: false, ev67Player: null, ev67Type: null,
-            cuck: false, cuckPlayer: null,
+            cuck: false, cuckPlayers: [],   // array: flera spelare kan få cuck rule
         };
+
+        function requireAdminPassword(action) {
+            const pw = prompt('Ange lösenord för att ' + action + ':');
+            if (pw === null) return false;
+            if (pw !== ADMIN_PASSWORD) { showToast('Fel lösenord'); return false; }
+            return true;
+        }
 
         // ============================================================
         // INIT
@@ -1263,10 +1272,14 @@
                 }
             }
 
-            // 9. Cuck rule
-            if (events.cuck && events.cuckPlayer) {
-                res[events.cuckPlayer].drinkSips += 6;
-                res[events.cuckPlayer].events.push({ desc: 'Cuck Rule (0 snaps)', sips: -6 });
+            // 9. Cuck rule — kan gälla flera spelare
+            if (events.cuck && events.cuckPlayers && events.cuckPlayers.length > 0) {
+                events.cuckPlayers.forEach(cp => {
+                    if (res[cp]) {
+                        res[cp].drinkSips += 6;
+                        res[cp].events.push({ desc: 'Cuck Rule (0 snaps)', sips: -6 });
+                    }
+                });
             }
 
             return res;
@@ -1463,7 +1476,7 @@
         }
 
         async function deleteRound(roundId) {
-            if (!confirm('Ta bort denna runda? Spelarnas poäng och klunkar justeras tillbaka.')) return;
+            if (!requireAdminPassword('ta bort runda')) return;
 
             const round = allRounds.find(r => r.id === roundId);
             if (!round || !activeSession) return;
@@ -1527,7 +1540,7 @@
                 knock: false, knockPlayer: null, knockWin: null,
                 snapout: false, snapoutPlayer: null,
                 ev67: false, ev67Player: null, ev67Type: null,
-                cuck: false, cuckPlayer: null,
+                cuck: false, cuckPlayers: [],
             };
             pids.forEach(pid => { roundState.scores[pid] = 0; roundState.cardCounts[pid] = 4; }); // default 4 cards
 
@@ -1578,7 +1591,7 @@
             buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
             buildChips(pids, 'ev-snapout-chips', 'setSnapoutPlayer');
             buildChips(pids, 'ev-67-chips', 'set67Player');
-            buildChips(pids, 'ev-cuck-chips', 'setCuckPlayer');
+            buildCuckChips(pids);
 
             ['knock-win-yes', 'knock-win-no', 'chip-hard', 'chip-soft'].forEach(id => {
                 const el = document.getElementById(id);
@@ -1625,7 +1638,24 @@
             document.getElementById('chip-hard').classList.toggle('selected', type === 'hard');
             document.getElementById('chip-soft').classList.toggle('selected', type === 'soft');
         }
-        function setCuckPlayer(pid) { roundState.cuckPlayer = pid; selectChip('ev-cuck-chips', pid); }
+
+        // Cuck: multiselect — toggle on/off per spelare
+        function buildCuckChips(pids) {
+            const wrap = document.getElementById('ev-cuck-chips');
+            if (!wrap) return;
+            wrap.innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                if (!p) return '';
+                return `<div class="chip" id="ev-cuck-chips-${pid}" onclick="toggleCuckPlayer('${pid}')">${p.name}</div>`;
+            }).join('');
+        }
+        function toggleCuckPlayer(pid) {
+            const idx = roundState.cuckPlayers.indexOf(pid);
+            if (idx >= 0) roundState.cuckPlayers.splice(idx, 1);
+            else roundState.cuckPlayers.push(pid);
+            const el = document.getElementById('ev-cuck-chips-' + pid);
+            if (el) el.classList.toggle('selected', roundState.cuckPlayers.includes(pid));
+        }
 
         async function saveRound() {
             if (!activeSession) return;
@@ -1635,7 +1665,7 @@
             if (roundState.snapout && !roundState.snapoutPlayer) { showToast('Välj snap-out-spelare'); return; }
             if (roundState.ev67 && !roundState.ev67Player) { showToast('Välj 6/7-spelare'); return; }
             if (roundState.ev67 && !roundState.ev67Type) { showToast('Välj Hard eller Soft 6/7'); return; }
-            if (roundState.cuck && !roundState.cuckPlayer) { showToast('Välj cuck-spelare'); return; }
+            if (roundState.cuck && roundState.cuckPlayers.length === 0) { showToast('Välj minst en cuck-spelare'); return; }
 
             const btn = document.getElementById('save-round-btn');
             btn.textContent = 'Sparar...'; btn.disabled = true;
@@ -1645,7 +1675,7 @@
                     knock: roundState.knock, knockPlayer: roundState.knockPlayer, knockWin: roundState.knockWin,
                     snapout: roundState.snapout, snapoutPlayer: roundState.snapoutPlayer,
                     ev67: roundState.ev67, ev67Player: roundState.ev67Player, ev67Type: roundState.ev67Type,
-                    cuck: roundState.cuck, cuckPlayer: roundState.cuckPlayer,
+                    cuck: roundState.cuck, cuckPlayers: roundState.cuckPlayers,
                 };
 
                 const computed = computeRound(activeSession, roundState.scores, roundState.cardCounts, events);
@@ -1710,15 +1740,18 @@
                 if (!p) return '';
                 const res = computed[pid];
                 const c = colorFor(p);
-                const net = res.giveSips - res.drinkSips;
-                const netLabel = net >= 0
-                    ? `<span style="color:var(--green);font-weight:700">Ger ${net} klunkar</span>`
-                    : `<span style="color:var(--accent);font-weight:700">Dricker ${Math.abs(net)} klunkar</span>`;
+
+                // Drink and give are always separate — never netted
+                const drinkLabel = res.drinkSips > 0
+                    ? `<span style="color:var(--accent);font-weight:700">Dricker ${res.drinkSips}</span>` : '';
+                const giveLabel = res.giveSips > 0
+                    ? `<span style="color:var(--green);font-weight:700">Delar ut ${res.giveSips}</span>` : '';
+                const sipSummary = [drinkLabel, giveLabel].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
                 const evList = res.events.map(ev => {
                     const sipStr = ev.sips > 0
-                        ? `<span style="color:var(--green)">+${ev.sips}</span>`
-                        : ev.sips < 0 ? `<span style="color:var(--accent)">${ev.sips}</span>` : '';
+                        ? `<span style="color:var(--green)">+${ev.sips} ge</span>`
+                        : ev.sips < 0 ? `<span style="color:var(--accent)">${Math.abs(ev.sips)} drick</span>` : '';
                     return `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:2px 0">
         <span>${ev.desc}</span>${sipStr}</div>`;
                 }).join('');
@@ -1730,7 +1763,7 @@
           <div style="font-weight:600">${p.name}</div>
           <div style="font-size:12px;color:${c.hex}">${res.roundPts}p (${res.cardCount} kort) → ${res.totalAfter}p totalt</div>
         </div>
-        ${netLabel}
+        <div style="text-align:right;font-size:13px">${sipSummary}</div>
       </div>
       <div style="background:var(--surface2);border-radius:8px;padding:8px">${evList}</div>
     </div>`;
@@ -1815,7 +1848,7 @@
 
         async function deletePlayer(id) {
             const p = getPlayer(id);
-            if (!confirm(`Ta bort ${p?.name}? All statistik försvinner.`)) return;
+            if (!requireAdminPassword('ta bort ' + (p?.name || 'spelare'))) return;
             try {
                 const { error } = await sb.from('players').delete().eq('id', id);
                 if (error) throw error;
@@ -2020,7 +2053,7 @@
         }
 
         async function deleteSession(id) {
-            if (!confirm('Ta bort sessionen? Rundorna tas bort men spelarstatistik påverkas inte.')) return;
+            if (!requireAdminPassword('ta bort session')) return;
             const { error } = await sb.from('sessions').delete().eq('id', id);
             if (error) { showToast('Fel: ' + error.message); return; }
             if (activeSession?.id === id) {
