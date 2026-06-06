@@ -40,6 +40,38 @@
             --glow-green: rgba(46,204,113,0.3);
         }
 
+        /* LIGHT MODE */
+        body.light {
+            --bg: #f0f0f8;
+            --surface: #ffffff;
+            --surface2: #f5f5fc;
+            --surface3: #e8e8f5;
+            --accent: #d63051;
+            --accent2: #e08a00;
+            --green: #1a9c52;
+            --blue: #2070c0;
+            --purple: #7c3aed;
+            --text: #0a0a18;
+            --text2: #555570;
+            --border: #d0d0e8;
+            --glow-red: rgba(214,48,81,0.15);
+            --glow-green: rgba(26,156,82,0.15);
+        }
+        body.light::before {
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(214,48,81,0.06) 0%, transparent 50%);
+        }
+        body.light .nav {
+            background: rgba(255,255,255,0.95);
+        }
+        body.light .modal {
+            background: var(--surface);
+        }
+        body.light .score-board-row.rank-1 {
+            background: linear-gradient(135deg, rgba(224,138,0,0.08), rgba(224,138,0,0.03));
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
         body {
@@ -484,7 +516,10 @@
                     <span class="sync-dot" id="sync-dot"></span><span id="sync-label">Ansluter...</span>
                 </div>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="openNewSession()">+ Session</button>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button onclick="toggleDarkLight()" id="theme-btn" style="background:none;border:1px solid var(--border);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:16px;color:var(--text2)">🌙</button>
+                <button class="btn btn-primary btn-sm" onclick="openNewSession()">+ Session</button>
+            </div>
         </div>
         <div id="active-session-wrap" style="display:none">
             <div class="card" style="border-color:var(--accent)">
@@ -527,7 +562,7 @@
                 <div class="page-title">Spel</div>
                 <div class="page-subtitle" id="game-session-label">Ingen aktiv session</div>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="endSession()">Avsluta</button>
+            <button class="btn btn-ghost btn-sm" id="end-session-btn" onclick="endSession()" style="display:none">Avsluta</button>
         </div>
         <div id="no-session-msg" class="empty">
             <div class="empty-icon">🎮</div>
@@ -535,7 +570,10 @@
         </div>
         <div id="game-content" style="display:none">
             <div class="card" id="game-scoreboard"></div>
-            <button class="btn btn-primary mt8" onclick="openRoundModal()">+ Logga runda</button>
+            <button class="btn btn-primary mt8" id="log-round-btn" onclick="openRoundModal()" style="display:none">+ Logga runda</button>
+            <div id="readonly-badge" style="display:none;text-align:center;padding:10px;font-size:13px;color:var(--text2);margin-top:8px">
+                👁 Läsläge — du kan se men inte redigera denna session
+            </div>
             <div class="mt12" id="game-rounds-list"></div>
         </div>
     </div>
@@ -718,9 +756,8 @@
                     <div id="ev-67-chips" class="chip-wrap"></div>
                     <div class="input-label mt8">Typ</div>
                     <div class="chip-wrap">
-                        <div class="chip" id="chip-hard" onclick="set67Type('hard')">Hard (bara 6&amp;7, down+shot)
-                        </div>
-                        <div class="chip" id="chip-soft" onclick="set67Type('soft')">Soft (fler kort, shot)</div>
+                        <div class="chip" id="chip-hard" onclick="set67Type('hard')">Hard</div>
+                        <div class="chip" id="chip-soft" onclick="set67Type('soft')">Soft</div>
                     </div>
                 </div>
 
@@ -797,16 +834,27 @@
         // ============================================================
         // STATE
         // ============================================================
-        let sb = null; // Supabase client
+        let sb = null;
         let allPlayers = [];
         let allSessions = [];
-        let allRounds = []; // rounds for active session
+        let allRounds = [];
         let activeSession = null;
         let selectedStatsPlayer = null;
         let selectedAddColor = 0;
 
         let newSessionPlayers = [];
         let newSessionRules = { hardcore: false, cuck: false };
+
+        // Device identity — stored in localStorage so the same device is always "the creator"
+        let myDeviceId = localStorage.getItem('tcg2_device_id');
+        if (!myDeviceId) {
+            myDeviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            localStorage.setItem('tcg2_device_id', myDeviceId);
+        }
+
+        function isSessionCreator(sess) {
+            return sess && sess.creator_id === myDeviceId;
+        }
 
         const ADMIN_PASSWORD = 'Federak902tety';
 
@@ -1176,23 +1224,14 @@
                 res[events.snapoutPlayer].events.push({ desc: 'Snap Out', sips: 2 });
             }
 
-            // 8. 6/7
+            // 8. 6/7 — ger endast klunkar till spelare som fick det (dela ut), inga minusklunkar för andra
             if (events.ev67 && events.ev67Player) {
                 const p67 = events.ev67Player;
                 const others = pids.filter(pid => pid !== p67);
-                if (events.ev67Type === 'hard') {
-                    others.forEach(pid => {
-                        res[pid].drinkSips += 8;
-                        res[pid].events.push({ desc: 'Hard 6/7 straff (down + shot)', sips: -8 });
-                    });
-                    res[p67].events.push({ desc: 'HARD 6/7! 🎉', sips: 0 });
-                } else {
-                    others.forEach(pid => {
-                        res[pid].drinkSips += 4;
-                        res[pid].events.push({ desc: 'Soft 6/7 straff (shot)', sips: -4 });
-                    });
-                    res[p67].events.push({ desc: 'Soft 6/7! 🎉', sips: 0 });
-                }
+                const label = events.ev67Type === 'hard' ? 'Hard 6/7! 🎉' : 'Soft 6/7! 🎉';
+                const giveAmt = others.length * (events.ev67Type === 'hard' ? 2 : 1); // ger 2 per person (hard) eller 1 (soft)
+                res[p67].giveSips += giveAmt;
+                res[p67].events.push({ desc: label, sips: giveAmt });
             }
 
             // 9. Cuck rule — kan gälla flera spelare
@@ -1316,6 +1355,7 @@
                     player_ids: newSessionPlayers,
                     rules: newSessionRules,
                     ended: false,
+                    creator_id: myDeviceId,
                 }).select().single();
                 if (error) throw error;
 
@@ -1355,7 +1395,11 @@
             }
             noMsg.style.display = 'none';
             content.style.display = 'block';
+            const creator = isSessionCreator(activeSession);
             document.getElementById('game-session-label').textContent = activeSession.name;
+            document.getElementById('end-session-btn').style.display = creator ? '' : 'none';
+            document.getElementById('log-round-btn').style.display = creator ? '' : 'none';
+            document.getElementById('readonly-badge').style.display = creator ? 'none' : 'block';
 
             // Scoreboard
             const pids = activeSession.player_ids || [];
@@ -1401,12 +1445,15 @@
                     return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p${lapTag}</span>`;
                 }).filter(Boolean).join(' · ');
 
+                const delBtn = isSessionCreator(activeSession)
+                    ? `<button class="btn btn-danger btn-sm" style="padding:4px 10px;font-size:12px" onclick="event.stopPropagation();deleteRound('${r.id}')">✕</button>`
+                    : '';
                 return `<div class="round-card" onclick="showRoundDetail('${r.id}')" style="cursor:pointer">
       <div class="round-header">
         <div style="font-weight:600">Runda ${r.round_number}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="font-size:12px;color:var(--text2)">${fmtDate(r.created_at)}</div>
-          <button class="btn btn-danger btn-sm" style="padding:4px 10px;font-size:12px" onclick="event.stopPropagation();deleteRound('${r.id}')">✕</button>
+          ${delBtn}
         </div>
       </div>
       <div>${scores}</div>
@@ -1787,12 +1834,15 @@
         <span>${ev.desc}</span>${sipStr}</div>`;
                 }).join('');
 
+                const afterLabel = res.lapCrossed
+                    ? `Varv ${res.lapAfter}, ${res.sessionPtsAfter}p`
+                    : `${res.sessionPtsAfter}p i session`;
                 return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         ${avatarEl(p, 36)}
         <div style="flex:1">
           <div style="font-weight:600">${p.name}</div>
-          <div style="font-size:12px;color:${c.hex}">${res.roundPts}p (${res.cardCount} kort) → ${res.totalAfter}p totalt</div>
+          <div style="font-size:12px;color:${c.hex}">${res.roundPts}p (${res.cardCount} kort) → ${afterLabel}</div>
         </div>
         <div style="text-align:right;font-size:13px">${sipSummary}</div>
       </div>
@@ -2025,15 +2075,45 @@
             }
             list.innerHTML = allSessions.map(sess => {
                 const names = (sess.player_ids || []).map(id => getPlayer(id)?.name || '?').join(', ');
-                const tag = !sess.ended ? ' <span style="font-size:11px;background:rgba(39,174,96,0.2);color:var(--green);padding:2px 8px;border-radius:10px">Aktiv</span>' : '';
+                const isActive = !sess.ended;
+                const isMine = isSessionCreator(sess);
+                const tag = isActive ? ' <span style="font-size:11px;background:rgba(39,174,96,0.2);color:var(--green);padding:2px 8px;border-radius:10px">Aktiv</span>' : '';
+                const followBtn = isActive && !isMine
+                    ? `<button class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%" onclick="event.stopPropagation();followSession('${sess.id}')">👁 Följ live</button>` : '';
+                const resumeBtn = isActive && isMine
+                    ? `<button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="event.stopPropagation();resumeSession('${sess.id}')">Fortsätt spela</button>` : '';
                 return `<div class="session-item" onclick="showSessionDetail('${sess.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-weight:600">${sess.name}${tag}</div>
         <div style="font-size:12px;color:var(--text2)">${fmtDate(sess.created_at)}</div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-top:4px">${names}</div>
+      ${followBtn}${resumeBtn}
     </div>`;
             }).join('');
+        }
+
+        // Follow a session as read-only viewer
+        async function followSession(id) {
+            const sess = allSessions.find(s => s.id === id);
+            if (!sess) return;
+            activeSession = sess;
+            allRounds = [];
+            await loadRoundsForSession(id);
+            // Store in localStorage so the followed session persists on reload
+            localStorage.setItem('tcg2_active_session', id);
+            nav('game');
+            showToast('Följer session i läsläge');
+        }
+
+        async function resumeSession(id) {
+            const sess = allSessions.find(s => s.id === id);
+            if (!sess) return;
+            activeSession = sess;
+            allRounds = [];
+            await loadRoundsForSession(id);
+            localStorage.setItem('tcg2_active_session', id);
+            nav('game');
         }
 
         let currentDetailSessionId = null;
@@ -2099,9 +2179,29 @@
         }
 
         // ============================================================
+        // DARK / LIGHT MODE
+        // ============================================================
+        function toggleDarkLight() {
+            const isLight = document.body.classList.toggle('light');
+            localStorage.setItem('tcg2_theme', isLight ? 'light' : 'dark');
+            document.getElementById('theme-btn').textContent = isLight ? '☀️' : '🌙';
+        }
+        function initTheme() {
+            const saved = localStorage.getItem('tcg2_theme');
+            // Also respect system preference if no manual choice saved
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const useLight = saved === 'light' || (saved === null && !prefersDark);
+            if (useLight) {
+                document.body.classList.add('light');
+                const btn = document.getElementById('theme-btn');
+                if (btn) btn.textContent = '☀️';
+            }
+        }
+
+        // ============================================================
         // START
         // ============================================================
-        window.addEventListener('load', init);
+        window.addEventListener('load', () => { initTheme(); init(); });
     </script>
 </body>
 
