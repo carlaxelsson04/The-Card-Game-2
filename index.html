@@ -689,23 +689,21 @@
                 <div id="ev-knock-detail" style="display:none" class="mt8">
                     <div class="input-label">Knackare</div>
                     <div id="ev-knock-chips" class="chip-wrap"></div>
-                    <div class="input-label mt8">Vann knackningen?</div>
-                    <div class="chip-wrap">
-                        <div class="chip" id="knock-win-yes" onclick="setKnockWin(true)">Ja (ger 6 klunkar)</div>
-                        <div class="chip" id="knock-win-no" onclick="setKnockWin(false)">Nej (dricker 6)</div>
+                    <div id="knock-win-row" style="display:none">
+                        <div class="input-label mt8">Vann knackningen?</div>
+                        <div class="chip-wrap">
+                            <div class="chip" id="knock-win-yes">Ja (ger 6)</div>
+                            <div class="chip" id="knock-win-no">Nej (dricker 6)</div>
+                        </div>
+                        <div style="font-size:12px;color:var(--text2);margin-top:6px">Auto-beräknas från poängen</div>
                     </div>
                 </div>
 
-                <div class="toggle-row">
+                <div class="toggle-row" id="ev-snapout-row" style="display:none">
                     <div>
                         <div class="toggle-label">Snap Out</div>
-                        <div class="toggle-desc">Vem snapade ut?</div>
+                        <div class="toggle-desc">Auto-detekteras från 0 kort</div>
                     </div>
-                    <div class="toggle" id="ev-snapout" onclick="toggleEvent('snapout')"></div>
-                </div>
-                <div id="ev-snapout-detail" style="display:none" class="mt8">
-                    <div class="input-label">Spelare</div>
-                    <div id="ev-snapout-chips" class="chip-wrap"></div>
                 </div>
 
                 <div class="toggle-row">
@@ -750,6 +748,16 @@
             <div class="modal-title">Rundaresultat 🎴</div>
             <div id="result-content"></div>
             <button class="btn btn-primary mt16" onclick="closeModal('modal-result')">Stäng</button>
+        </div>
+    </div>
+
+    <!-- MODAL: RUNDDETALJ (klickbar från rundlistan) -->
+    <div class="modal-overlay" id="modal-round-detail" onclick="closeModalOverlay('modal-round-detail',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title" id="rd-title">Runda</div>
+            <div id="rd-content"></div>
+            <button class="btn btn-ghost mt16" onclick="closeModal('modal-round-detail')">Stäng</button>
         </div>
     </div>
 
@@ -1030,19 +1038,61 @@
         // ============================================================
         // SCORING LOGIC
         // ============================================================
+        const LAP_LIMIT = 50; // poäng per varv
+
         function computeRound(session, scores, cardCounts, events) {
             const pids = session.player_ids;
 
-            // Base result per player
+            // --- AUTO-DERIVE EVENTS ---
+            // 1. 0 kort = snap out automatiskt
+            pids.forEach(pid => {
+                if ((cardCounts[pid] || 0) === 0) {
+                    events.snapout = true;
+                    events.snapoutPlayer = pid;
+                }
+            });
+
+            // 2. Hard 6/7 kräver exakt 2 kort — annars tvinga soft
+            if (events.ev67 && events.ev67Player && events.ev67Type === 'hard') {
+                if ((cardCounts[events.ev67Player] || 0) !== 2) {
+                    events.ev67Type = 'soft';
+                }
+            }
+
+            // 3. Knackning: vann/förlorade bestäms av om knackaren har lägst poäng
+            if (events.knock && events.knockPlayer) {
+                const knockerScore = scores[events.knockPlayer] || 0;
+                const minScore = Math.min(...pids.map(pid => scores[pid] || 0));
+                events.knockWin = knockerScore === minScore;
+            }
+
+            // --- BUILD BASE RESULT ---
             const res = {};
             pids.forEach(pid => {
                 const p = getPlayer(pid);
-                const totalBefore = p ? (p.total_pts || 0) : 0;
+                const sessionPtsBefore = p ? (p.total_pts || 0) : 0;
+                const lapBefore = p ? (p.current_lap || 1) : 1;
+                const roundPts = scores[pid] || 0;
+                const rawAfter = sessionPtsBefore + roundPts;
+
+                // Varvslogik: om rawAfter >= LAP_LIMIT startar nytt varv
+                let lapCrossed = false;
+                let newSessionPts = rawAfter;
+                let newLap = lapBefore;
+                if (rawAfter >= LAP_LIMIT) {
+                    lapCrossed = true;
+                    newSessionPts = rawAfter - LAP_LIMIT; // överskottet
+                    newLap = lapBefore + 1;
+                }
+
                 res[pid] = {
-                    roundPts: scores[pid] || 0,
+                    roundPts,
                     cardCount: cardCounts[pid] || 0,
-                    totalBefore,
-                    totalAfter: totalBefore + (scores[pid] || 0),
+                    sessionPtsBefore,
+                    sessionPtsAfter: newSessionPts,
+                    lapBefore,
+                    lapAfter: newLap,
+                    lapCrossed,
                     drinkSips: 0,
                     giveSips: 0,
                     events: [],
@@ -1055,7 +1105,7 @@
                 res[pid].events.push({ desc: 'Per runda', sips: -2 });
             });
 
-            // 2. Antal kort = antal klunkar (INTE poängen)
+            // 2. Antal kort = antal klunkar
             pids.forEach(pid => {
                 const cards = res[pid].cardCount;
                 if (cards > 0) {
@@ -1064,14 +1114,16 @@
                 }
             });
 
-            // 3. Tröskelkorsningar baserade på POÄNG
+            // 3. Tröskelkorsningar (baserade på session-poäng, inte all-time)
             pids.forEach(pid => {
-                const before = res[pid].totalBefore;
-                const after = res[pid].totalAfter;
+                const before = res[pid].sessionPtsBefore;
+                const after = res[pid].lapCrossed ? LAP_LIMIT : res[pid].sessionPtsAfter + res[pid].sessionPtsBefore - res[pid].sessionPtsBefore + res[pid].roundPts;
+                // Simplified: check thresholds between before and before+roundPts (capped at LAP_LIMIT)
+                const effectiveAfter = Math.min(res[pid].sessionPtsBefore + res[pid].roundPts, LAP_LIMIT);
                 let threshSips = 0;
                 const crossed = [];
                 THRESHOLDS.forEach(t => {
-                    if (before < t.pts && after >= t.pts) {
+                    if (before < t.pts && effectiveAfter >= t.pts) {
                         threshSips += t.sips;
                         crossed.push(t.pts);
                     }
@@ -1080,9 +1132,17 @@
                     res[pid].drinkSips += threshSips;
                     res[pid].events.push({ desc: `Tröskel (${crossed.join(', ')}p)`, sips: -threshSips });
                 }
+
+                // Varvskorsning: 10 klunkar (tröskel 50) + 14 klunkar (ny enhet) = 24 totalt
+                if (res[pid].lapCrossed) {
+                    res[pid].drinkSips += 10; // tröskelstraff för 50p
+                    res[pid].events.push({ desc: 'Varv klart! Tröskel 50p', sips: -10 });
+                    res[pid].drinkSips += 14; // hel enhet
+                    res[pid].events.push({ desc: 'Ny enhet (ny runda)', sips: -14 });
+                }
             });
 
-            // 4. Vinnare (lägst poäng) ger 2
+            // 4. Vinnare (lägst poäng denna runda) ger 2
             const minPts = Math.min(...pids.map(pid => res[pid].roundPts));
             pids.filter(pid => res[pid].roundPts === minPts).forEach(pid => {
                 res[pid].giveSips += 2;
@@ -1098,7 +1158,7 @@
                 });
             }
 
-            // 6. Knackning
+            // 6. Knackning (auto-beräknad win/loss ovan)
             if (events.knock && events.knockPlayer) {
                 const kp = events.knockPlayer;
                 if (events.knockWin) {
@@ -1110,7 +1170,7 @@
                 }
             }
 
-            // 7. Snap Out
+            // 7. Snap Out (auto eller manuell)
             if (events.snapout && events.snapoutPlayer) {
                 res[events.snapoutPlayer].giveSips += 2;
                 res[events.snapoutPlayer].events.push({ desc: 'Snap Out', sips: 2 });
@@ -1258,6 +1318,16 @@
                     ended: false,
                 }).select().single();
                 if (error) throw error;
+
+                // Nollställ session-poäng och varv för alla valda spelare
+                for (const pid of newSessionPlayers) {
+                    await sb.from('players').update({
+                        total_pts: 0,
+                        current_lap: 1,
+                    }).eq('id', pid);
+                }
+                await loadPlayers();
+
                 activeSession = data;
                 allRounds = [];
                 localStorage.setItem('tcg2_active_session', data.id);
@@ -1295,19 +1365,21 @@
             })).filter(x => x.player).sort((a, b) => a.total - b.total);
 
             const sb2 = document.getElementById('game-scoreboard');
-            sb2.innerHTML = `<div class="card-title">Ställning</div>` + playerScores.map((ps, i) => {
+            sb2.innerHTML = `<div class="card-title">Ställning — session</div>` + playerScores.map((ps, i) => {
                 const p = ps.player;
                 const c = colorFor(p);
                 const isFirst = i === 0;
                 const isLast = i === playerScores.length - 1;
                 const medal = isFirst ? '🥇' : isLast ? '💀' : `${i+1}`;
                 const rankClass = isFirst ? 'rank-1' : isLast ? 'rank-last' : '';
+                const lap = p.current_lap || 1;
+                const lapBadge = lap > 1 ? `<span style="font-size:10px;background:rgba(168,85,247,0.2);color:var(--purple);padding:2px 6px;border-radius:8px;margin-left:4px">Varv ${lap}</span>` : '';
                 return `<div class="score-board-row ${rankClass}">
       <div style="font-size:${isFirst||isLast?'20':'16'}px;width:28px;text-align:center">${medal}</div>
       ${avatarEl(p, 38)}
       <div style="flex:1;margin-left:8px">
-        <div style="font-weight:700;font-size:15px">${p.name}</div>
-        <div style="font-size:11px;color:var(--text2)">${p.total_rounds || 0} rundor</div>
+        <div style="font-weight:700;font-size:15px">${p.name}${lapBadge}</div>
+        <div style="font-size:11px;color:var(--text2)">${p.total_rounds || 0} rundor totalt</div>
       </div>
       <div style="font-size:24px;font-weight:800;color:${c.hex}">${ps.total}<span style="font-size:13px;font-weight:500;color:var(--text2)">p</span></div>
     </div>`;
@@ -1325,18 +1397,20 @@
                     const entry = r.player_results[pid];
                     if (!p || !entry) return '';
                     const c = colorFor(p);
-                    return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p (${entry.card_count} kort)</span>`;
+                    const lapTag = entry.lap_crossed ? ' 🔄' : '';
+                    return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p${lapTag}</span>`;
                 }).filter(Boolean).join(' · ');
 
-                return `<div class="round-card">
+                return `<div class="round-card" onclick="showRoundDetail('${r.id}')" style="cursor:pointer">
       <div class="round-header">
         <div style="font-weight:600">Runda ${r.round_number}</div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="font-size:12px;color:var(--text2)">${fmtDate(r.created_at)}</div>
-          <button class="btn btn-danger btn-sm" style="padding:4px 10px;font-size:12px" onclick="deleteRound('${r.id}')">Ta bort</button>
+          <button class="btn btn-danger btn-sm" style="padding:4px 10px;font-size:12px" onclick="event.stopPropagation();deleteRound('${r.id}')">✕</button>
         </div>
       </div>
       <div>${scores}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">Tryck för detaljer</div>
     </div>`;
             }).join('');
         }
@@ -1434,7 +1508,10 @@
                 const c = colorFor(p);
                 return `<div class="score-row">
       ${avatarEl(p, 36)}
-      <div style="flex:1;margin-left:8px;font-weight:600">${p.name}</div>
+      <div style="flex:1;margin-left:8px">
+        <div style="font-weight:600">${p.name}</div>
+        <div id="cc-hint-${pid}" style="font-size:11px;color:var(--text2);margin-top:2px"></div>
+      </div>
       <div class="score-controls">
         <button class="stepper-btn" onclick="adjustCards('${pid}',-1)">−</button>
         <div class="score-val" id="cc-${pid}" style="color:${c.hex}">4</div>
@@ -1443,23 +1520,28 @@
     </div>`;
             }).join('');
 
-            // Reset toggles
-            ['knock', 'snapout', '67', 'cuck'].forEach(ev => {
+            // Reset toggles — snap out and knock-win are now auto, hidden from UI
+            ['knock', '67', 'cuck'].forEach(ev => {
                 const el = document.getElementById('ev-' + ev);
                 if (el) el.classList.remove('on');
                 const det = document.getElementById('ev-' + ev + '-detail');
                 if (det) det.style.display = 'none';
             });
+            // Hide snap out toggle entirely (auto-derived from 0 cards)
+            const snapRow = document.getElementById('ev-snapout-row');
+            if (snapRow) snapRow.style.display = 'none';
+            // Hide knock win chips (auto-derived)
+            const knockWinRow = document.getElementById('knock-win-row');
+            if (knockWinRow) knockWinRow.style.display = 'none';
 
             const cuckRow = document.getElementById('cuck-toggle-row');
             if (cuckRow) cuckRow.style.display = (activeSession.rules?.cuck) ? 'flex' : 'none';
 
             buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
-            buildChips(pids, 'ev-snapout-chips', 'setSnapoutPlayer');
             buildChips(pids, 'ev-67-chips', 'set67Player');
             buildCuckChips(pids);
 
-            ['knock-win-yes', 'knock-win-no', 'chip-hard', 'chip-soft'].forEach(id => {
+            ['chip-hard', 'chip-soft'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('selected');
             });
@@ -1479,8 +1561,35 @@
 
         function adjustCards(pid, delta) {
             roundState.cardCounts[pid] = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
+            const cards = roundState.cardCounts[pid];
             const el = document.getElementById('cc-' + pid);
-            if (el) el.textContent = roundState.cardCounts[pid];
+            if (el) el.textContent = cards;
+
+            // Hint label
+            const hint = document.getElementById('cc-hint-' + pid);
+            if (hint) {
+                if (cards === 0) hint.textContent = '⚡ Snap Out (auto)';
+                else if (cards === 2) hint.textContent = 'Hard 6/7 möjlig';
+                else hint.textContent = '';
+            }
+
+            // Update hard/soft 6/7 availability if this player is the 6/7 player
+            if (roundState.ev67Player === pid) {
+                updateHardSoftVisibility(pid);
+            }
+        }
+
+        function updateHardSoftVisibility(pid) {
+            const cards = roundState.cardCounts[pid] || 0;
+            const hardBtn = document.getElementById('chip-hard');
+            if (hardBtn) {
+                hardBtn.style.display = cards === 2 ? 'inline-flex' : 'none';
+                if (cards !== 2 && roundState.ev67Type === 'hard') {
+                    roundState.ev67Type = 'soft';
+                    document.getElementById('chip-soft')?.classList.add('selected');
+                    hardBtn.classList.remove('selected');
+                }
+            }
         }
 
         function toggleEvent(ev) {
@@ -1498,7 +1607,11 @@
             document.getElementById('knock-win-no').classList.toggle('selected', !val);
         }
         function setSnapoutPlayer(pid) { roundState.snapoutPlayer = pid; selectChip('ev-snapout-chips', pid); }
-        function set67Player(pid) { roundState.ev67Player = pid; selectChip('ev-67-chips', pid); }
+        function set67Player(pid) {
+            roundState.ev67Player = pid;
+            selectChip('ev-67-chips', pid);
+            updateHardSoftVisibility(pid);
+        }
         function set67Type(type) {
             roundState.ev67Type = type;
             document.getElementById('chip-hard').classList.toggle('selected', type === 'hard');
@@ -1527,8 +1640,6 @@
             if (!activeSession) return;
 
             if (roundState.knock && !roundState.knockPlayer) { showToast('Välj vem som knackade'); return; }
-            if (roundState.knock && roundState.knockWin === null) { showToast('Vann knackningen?'); return; }
-            if (roundState.snapout && !roundState.snapoutPlayer) { showToast('Välj snap-out-spelare'); return; }
             if (roundState.ev67 && !roundState.ev67Player) { showToast('Välj 6/7-spelare'); return; }
             if (roundState.ev67 && !roundState.ev67Type) { showToast('Välj Hard eller Soft 6/7'); return; }
             if (roundState.cuck && roundState.cuckPlayers.length === 0) { showToast('Välj minst en cuck-spelare'); return; }
@@ -1537,9 +1648,10 @@
             btn.textContent = 'Sparar...'; btn.disabled = true;
 
             try {
+                // Events object — knock win and snapout are auto-computed inside computeRound
                 const events = {
-                    knock: roundState.knock, knockPlayer: roundState.knockPlayer, knockWin: roundState.knockWin,
-                    snapout: roundState.snapout, snapoutPlayer: roundState.snapoutPlayer,
+                    knock: roundState.knock, knockPlayer: roundState.knockPlayer, knockWin: null,
+                    snapout: false, snapoutPlayer: null,
                     ev67: roundState.ev67, ev67Player: roundState.ev67Player, ev67Type: roundState.ev67Type,
                     cuck: roundState.cuck, cuckPlayers: roundState.cuckPlayers,
                 };
@@ -1553,8 +1665,11 @@
                     playerResults[pid] = {
                         round_pts: computed[pid].roundPts,
                         card_count: computed[pid].cardCount,
-                        total_before: computed[pid].totalBefore,
-                        total_after: computed[pid].totalAfter,
+                        session_pts_before: computed[pid].sessionPtsBefore,
+                        session_pts_after: computed[pid].sessionPtsAfter,
+                        lap_before: computed[pid].lapBefore,
+                        lap_after: computed[pid].lapAfter,
+                        lap_crossed: computed[pid].lapCrossed,
                         drink_sips: computed[pid].drinkSips,
                         give_sips: computed[pid].giveSips,
                         events: computed[pid].events,
@@ -1578,7 +1693,9 @@
                     const newAllRoundPts = [...(p.all_round_pts || []), res.roundPts];
                     const newAvg = newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length;
                     const { error: pErr } = await sb.from('players').update({
-                        total_pts: res.totalAfter,
+                        total_pts: res.sessionPtsAfter,          // session-poäng (nollställs per session)
+                        current_lap: res.lapAfter,               // varv i aktuell session
+                        all_time_pts: (p.all_time_pts || 0) + res.roundPts, // ackumulerat all-time
                         total_rounds: (p.total_rounds || 0) + 1,
                         total_drink_sips: (p.total_drink_sips || 0) + res.drinkSips,
                         total_give_sips: (p.total_give_sips || 0) + res.giveSips,
@@ -1598,6 +1715,54 @@
             } finally {
                 btn.textContent = 'Beräkna & Spara'; btn.disabled = false;
             }
+        }
+
+        // Show details of a previously saved round (clicked from round list)
+        function showRoundDetail(roundId) {
+            const round = allRounds.find(r => r.id === roundId);
+            if (!round || !activeSession) return;
+            const pids = activeSession.player_ids || [];
+            document.getElementById('rd-title').textContent = `Runda ${round.round_number}`;
+
+            const html = pids.map(pid => {
+                const p = getPlayer(pid);
+                const entry = round.player_results[pid];
+                if (!p || !entry) return '';
+                const c = colorFor(p);
+
+                const drinkLabel = entry.drink_sips > 0
+                    ? `<span style="color:var(--accent);font-weight:700">Dricker ${entry.drink_sips}</span>` : '';
+                const giveLabel = entry.give_sips > 0
+                    ? `<span style="color:var(--green);font-weight:700">Delar ut ${entry.give_sips}</span>` : '';
+                const sipSummary = [drinkLabel, giveLabel].filter(Boolean).join(' · ');
+
+                const lapInfo = entry.lap_crossed
+                    ? `<div style="font-size:11px;color:var(--purple);margin-top:2px">🔄 Varv ${entry.lap_before} → Varv ${entry.lap_after}</div>` : '';
+
+                const evList = (entry.events || []).map(ev => {
+                    const sipStr = ev.sips > 0
+                        ? `<span style="color:var(--green)">${ev.sips} ge</span>`
+                        : ev.sips < 0 ? `<span style="color:var(--accent)">${Math.abs(ev.sips)} drick</span>` : '';
+                    return `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:2px 0">
+                        <span>${ev.desc}</span>${sipStr}</div>`;
+                }).join('');
+
+                return `<div class="result-section" style="margin-bottom:10px">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                        ${avatarEl(p, 36)}
+                        <div style="flex:1">
+                            <div style="font-weight:700">${p.name}</div>
+                            <div style="font-size:12px;color:${c.hex}">${entry.round_pts}p · ${entry.session_pts_before || 0}p → ${entry.session_pts_after || 0}p i session</div>
+                            ${lapInfo}
+                        </div>
+                        <div style="text-align:right;font-size:13px">${sipSummary}</div>
+                    </div>
+                    <div style="background:var(--bg);border-radius:8px;padding:8px">${evList}</div>
+                </div>`;
+            }).join('');
+
+            document.getElementById('rd-content').innerHTML = html || '<div style="color:var(--text2)">Ingen data</div>';
+            openModal('modal-round-detail');
         }
 
         function showRoundResult(computed, pids) {
