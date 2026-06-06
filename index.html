@@ -1474,35 +1474,44 @@
             const round = allRounds.find(r => r.id === roundId);
             if (!round || !activeSession) return;
 
-            // Revert player stats for this round
             const pids = activeSession.player_ids || [];
+
             for (const pid of pids) {
                 const entry = round.player_results[pid];
                 if (!entry) continue;
                 const p = getPlayer(pid);
                 if (!p) continue;
-                const newAllRoundPts = (p.all_round_pts || []).slice(0, -1); // remove last entry
-                const newTotalRounds = Math.max(0, (p.total_rounds || 1) - 1);
-                const newTotalPts = (p.total_pts || 0) - (entry.round_pts || 0);
-                const newDrinkSips = Math.max(0, (p.total_drink_sips || 0) - (entry.drink_sips || 0));
-                const newGiveSips = Math.max(0, (p.total_give_sips || 0) - (entry.give_sips || 0));
-                const newAvg = newAllRoundPts.length > 0
-                    ? newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length : 0;
+
+                const roundPts = entry.round_pts || 0;
+                const drinkSips = entry.drink_sips || 0;
+                const giveSips = entry.give_sips || 0;
+
+                // Remove exactly this round's points from all_round_pts by value+index match
+                // We find the first occurrence matching roundPts and remove it
+                const arr = [...(p.all_round_pts || [])];
+                const idx = arr.indexOf(roundPts);
+                if (idx !== -1) arr.splice(idx, 1);
+
+                const newAvg = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+                // session_pts_before is the session score before this round was played
+                // Restore it as the new session total
+                const newSessionPts = entry.session_pts_before ?? Math.max(0, (p.total_pts || 0) - roundPts);
+                const newLap = entry.lap_before ?? (p.current_lap || 1);
 
                 await sb.from('players').update({
-                    total_pts: newTotalPts,
-                    total_rounds: newTotalRounds,
-                    total_drink_sips: newDrinkSips,
-                    total_give_sips: newGiveSips,
+                    total_pts: newSessionPts,          // restore session score to before this round
+                    current_lap: newLap,               // restore lap
+                    all_time_pts: Math.max(0, (p.all_time_pts || 0) - roundPts),
+                    total_rounds: Math.max(0, (p.total_rounds || 1) - 1),
+                    total_drink_sips: Math.max(0, (p.total_drink_sips || 0) - drinkSips),
+                    total_give_sips: Math.max(0, (p.total_give_sips || 0) - giveSips),
+                    all_round_pts: arr,
                     avg_pts: newAvg,
-                    all_round_pts: newAllRoundPts,
                 }).eq('id', pid);
             }
 
-            // Delete round from DB
             await sb.from('rounds').delete().eq('id', roundId);
-
-            // Reload
             await loadPlayers();
             await loadRoundsForSession(activeSession.id);
             renderGame();
@@ -1615,12 +1624,25 @@
             const el = document.getElementById('sv-' + pid);
             if (el) {
                 el.textContent = val;
-                el.style.color = val < 0 ? 'var(--green)' : val === 0 ? 'var(--text2)' : colorFor(getPlayer(pid)).hex;
+                // Always use player color — negative scores are still that player's result
+                el.style.color = val === 0 ? 'var(--text2)' : colorFor(getPlayer(pid)).hex;
             }
         }
 
         function adjustCards(pid, delta) {
-            roundState.cardCounts[pid] = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
+            const proposed = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
+
+            // Only one player can have 0 cards (snap out). If another already has 0, block this one at 1.
+            if (proposed === 0) {
+                const pids = activeSession?.player_ids || [];
+                const someoneElseHasZero = pids.some(p => p !== pid && (roundState.cardCounts[p] || 0) === 0);
+                if (someoneElseHasZero) {
+                    showToast('Bara en spelare kan snappa ut per runda');
+                    return;
+                }
+            }
+
+            roundState.cardCounts[pid] = proposed;
             const cards = roundState.cardCounts[pid];
             const el = document.getElementById('cc-' + pid);
             if (el) el.textContent = cards;
@@ -2233,53 +2255,84 @@
             }).join('');
 
             document.getElementById('rd-content').innerHTML = html;
-            openModal('modal-round-detail');
+            // Hide session detail modal so round detail is on top; restore it when closed
+            document.getElementById('modal-session-detail').classList.remove('open');
+            document.getElementById('modal-round-detail').classList.add('open');
+            // When round detail closes, bring session detail back
+            const overlay = document.getElementById('modal-round-detail');
+            const restoreSession = () => {
+                document.getElementById('modal-session-detail').classList.add('open');
+                overlay.removeEventListener('click', handler);
+            };
+            const btnClose = overlay.querySelector('.btn-ghost');
+            if (btnClose) {
+                const oldOnclick = btnClose.onclick;
+                btnClose.onclick = () => {
+                    if (oldOnclick) oldOnclick();
+                    restoreSession();
+                };
+            }
+            // Also restore if clicking overlay background
+            const handler = (e) => {
+                if (e.target === overlay) restoreSession();
+            };
+            overlay.addEventListener('click', handler);
         }
 
         async function deleteSession(id) {
             if (!await requireAdminPassword('ta bort session')) return;
 
-            // Load session rounds to reverse player stats
             const { data: sessRounds } = await sb.from('rounds').select('*').eq('session_id', id);
             const sess = allSessions.find(s => s.id === id);
             const pids = sess?.player_ids || [];
+            const rounds = sessRounds || [];
 
-            // Reverse stats for each player
+            // Is this the currently active/followed session on this device?
+            const isDeletingActive = activeSession?.id === id;
+
             for (const pid of pids) {
                 const p = getPlayer(pid);
                 if (!p) continue;
-                const rounds = sessRounds || [];
-                const totalRoundsInSession = rounds.length;
-                const totalDrinkInSession = rounds.reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
-                const totalGiveInSession = rounds.reduce((a, r) => a + (r.player_results[pid]?.give_sips || 0), 0);
-                const allPtsInSession = rounds.map(r => r.player_results[pid]?.round_pts || 0);
-                const totalAllTimeInSession = allPtsInSession.reduce((a, b) => a + b, 0);
 
-                const newTotalRounds = Math.max(0, (p.total_rounds || 0) - totalRoundsInSession);
-                const newDrink = Math.max(0, (p.total_drink_sips || 0) - totalDrinkInSession);
-                const newGive = Math.max(0, (p.total_give_sips || 0) - totalGiveInSession);
-                const newAllTimePts = Math.max(0, (p.all_time_pts || 0) - totalAllTimeInSession);
-                // Remove this session's round pts from all_round_pts array
-                const newAllRoundPts = (p.all_round_pts || []).slice(0, Math.max(0, (p.all_round_pts || []).length - totalRoundsInSession));
-                const newAvg = newAllRoundPts.length > 0 ? newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length : 0;
+                // Collect per-round stats to subtract
+                const totalRoundsInSession = rounds.filter(r => r.player_results[pid]).length;
+                const totalDrink = rounds.reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
+                const totalGive = rounds.reduce((a, r) => a + (r.player_results[pid]?.give_sips || 0), 0);
+                const ptsInSession = rounds.map(r => r.player_results[pid]?.round_pts || 0);
+                const totalAllTime = ptsInSession.reduce((a, b) => a + b, 0);
 
-                await sb.from('players').update({
-                    total_rounds: newTotalRounds,
-                    total_drink_sips: newDrink,
-                    total_give_sips: newGive,
-                    all_time_pts: newAllTimePts,
-                    all_round_pts: newAllRoundPts,
+                // Remove exactly the round_pts for this session from all_round_pts
+                // We do it by value, removing each match one at a time
+                let arr = [...(p.all_round_pts || [])];
+                for (const pts of ptsInSession) {
+                    const i = arr.indexOf(pts);
+                    if (i !== -1) arr.splice(i, 1);
+                }
+                const newAvg = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+                const update = {
+                    total_rounds: Math.max(0, (p.total_rounds || 0) - totalRoundsInSession),
+                    total_drink_sips: Math.max(0, (p.total_drink_sips || 0) - totalDrink),
+                    total_give_sips: Math.max(0, (p.total_give_sips || 0) - totalGive),
+                    all_time_pts: Math.max(0, (p.all_time_pts || 0) - totalAllTime),
+                    all_round_pts: arr,
                     avg_pts: newAvg,
-                    // Reset session pts and lap since session is gone
-                    total_pts: 0,
-                    current_lap: 1,
-                }).eq('id', pid);
+                };
+
+                // Only reset session_pts and lap if this was their active session.
+                // If they're mid-game in another session, leave total_pts/current_lap untouched.
+                if (isDeletingActive || !activeSession || !(activeSession.player_ids || []).includes(pid)) {
+                    update.total_pts = 0;
+                    update.current_lap = 1;
+                }
+
+                await sb.from('players').update(update).eq('id', pid);
             }
 
             const { error } = await sb.from('sessions').delete().eq('id', id);
             if (error) { showToast('Fel: ' + error.message); return; }
 
-            if (activeSession?.id === id) {
+            if (isDeletingActive) {
                 activeSession = null;
                 allRounds = [];
                 localStorage.removeItem('tcg2_active_session');
