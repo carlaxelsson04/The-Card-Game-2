@@ -800,9 +800,24 @@
             <div class="modal-handle"></div>
             <div class="modal-title" id="sd-title">Session</div>
             <div id="sd-content"></div>
+            <div id="sd-rounds-list" class="mt12"></div>
             <div style="display:flex;gap:8px;margin-top:12px">
                 <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-session-detail')">Stäng</button>
                 <button class="btn btn-danger" style="flex:1" id="sd-delete-btn">Ta bort session</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: BEKRÄFTA AVSLUTA SESSION -->
+    <div class="modal-overlay" id="modal-confirm-end" onclick="closeModalOverlay('modal-confirm-end',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div style="text-align:center">
+                <div style="font-size:40px;margin-bottom:12px">🏁</div>
+                <div class="modal-title">Avsluta session?</div>
+                <div style="font-size:14px;color:var(--text2);margin-bottom:20px">Sessionen avslutas och kan inte redigeras igen.</div>
+                <button class="btn btn-danger" onclick="confirmEndSession()">Ja, avsluta</button>
+                <button class="btn btn-ghost mt8" onclick="closeModal('modal-confirm-end')">Avbryt</button>
             </div>
         </div>
     </div>
@@ -1063,12 +1078,13 @@
             setTimeout(() => t.classList.remove('show'), dur);
         }
 
-        function buildChips(playerIds, containerId, onclickFn) {
+        function buildChips(playerIds, containerId, onclickFn, filterFn) {
             const wrap = document.getElementById(containerId);
             if (!wrap) return;
             wrap.innerHTML = playerIds.map(pid => {
                 const p = getPlayer(pid);
                 if (!p) return '';
+                if (filterFn && !filterFn(pid)) return ''; // skip filtered-out players
                 return `<div class="chip" id="${containerId}-${pid}" onclick="${onclickFn}('${pid}')">${p.name}</div>`;
             }).join('');
         }
@@ -1493,16 +1509,24 @@
             showToast('Runda borttagen');
         }
 
-        async function endSession() {
+        function endSession() {
             if (!activeSession) return;
-            if (!confirm('Avsluta sessionen?')) return;
+            openModal('modal-confirm-end');
+        }
+
+        async function confirmEndSession() {
+            closeModal('modal-confirm-end');
             await sb.from('sessions').update({ ended: true, ended_at: new Date().toISOString() }).eq('id', activeSession.id);
+            const endedId = activeSession.id;
             activeSession = null;
             allRounds = [];
             localStorage.removeItem('tcg2_active_session');
             await loadSessions();
+            await loadPlayers();
             renderGame();
             showToast('Session avslutad!');
+            // Show the detail view of the ended session
+            showSessionDetail(endedId);
         }
 
         // ============================================================
@@ -1575,7 +1599,8 @@
             if (cuckRow) cuckRow.style.display = (activeSession.rules?.cuck) ? 'flex' : 'none';
 
             buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
-            buildChips(pids, 'ev-67-chips', 'set67Player');
+            // 6/7 only possible with 2+ kort (0 = snap out, 1 = omöjligt)
+            buildChips(pids, 'ev-67-chips', 'set67Player', pid => (roundState.cardCounts[pid] || 0) >= 2);
             buildCuckChips(pids);
 
             const autoLabel = document.getElementById('chip-67-auto');
@@ -1608,7 +1633,16 @@
                 else hint.textContent = '';
             }
 
-            // Update auto 6/7 label if this player is already selected as 6/7 player
+            // Rebuild 6/7 chip list live (filter changes as card counts change)
+            const pids = activeSession?.player_ids || [];
+            buildChips(pids, 'ev-67-chips', 'set67Player', p => (roundState.cardCounts[p] || 0) >= 2);
+            // If selected 6/7 player now has <2 cards, deselect them
+            if (roundState.ev67Player && (roundState.cardCounts[roundState.ev67Player] || 0) < 2) {
+                roundState.ev67Player = null;
+                const label = document.getElementById('chip-67-auto');
+                if (label) label.textContent = '';
+            }
+            // Update auto label if still selected
             if (roundState.ev67Player === pid) {
                 const label = document.getElementById('chip-67-auto');
                 if (label) label.textContent = cards === 2 ? 'Hard (2 kort)' : 'Soft (fler än 2 kort)';
@@ -2091,21 +2125,23 @@
 
         let currentDetailSessionId = null;
 
+        let _detailRounds = []; // rounds loaded for detail modal
+
         async function showSessionDetail(id) {
             currentDetailSessionId = id;
             const sess = allSessions.find(s => s.id === id);
             if (!sess) return;
             document.getElementById('sd-title').textContent = sess.name;
 
-            // Load rounds for this session
             const { data: rounds } = await sb.from('rounds').select('*')
                 .eq('session_id', id).order('round_number');
+            _detailRounds = rounds || [];
 
             const pids = sess.player_ids || [];
             const standings = pids.map(pid => {
                 const p = getPlayer(pid);
-                const sessionPts = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.round_pts || 0), 0);
-                const sessionDrink = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
+                const sessionPts = _detailRounds.reduce((a, r) => a + (r.player_results[pid]?.round_pts || 0), 0);
+                const sessionDrink = _detailRounds.reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
                 return { player: p, pts: sessionPts, drink: sessionDrink };
             }).filter(x => x.player).sort((a, b) => a.pts - b.pts);
 
@@ -2113,11 +2149,11 @@
                 const p = s.player;
                 const c = colorFor(p);
                 return `<div class="lb-row">
-      <div class="lb-rank">${['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣'][i] || i + 1}</div>
+      <div class="lb-rank">${['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣'][i]||i+1}</div>
       ${avatarEl(p, 32)}
       <div style="flex:1;margin-left:8px">
         <div style="font-weight:600">${p.name}</div>
-        <div style="font-size:12px;color:var(--text2)">${s.drink} klunkar druckna</div>
+        <div style="font-size:12px;color:var(--text2)">${s.drink} klunkar druckna · ${s.pts}p totalt</div>
       </div>
       <div style="font-weight:700;color:${c.hex}">${s.pts}p</div>
     </div>`;
@@ -2125,30 +2161,134 @@
 
             document.getElementById('sd-content').innerHTML = `
     <div style="font-size:13px;color:var(--text2)">
-      ${(rounds || []).length} rundor · ${fmtDate(sess.created_at)}
+      ${_detailRounds.length} rundor · ${fmtDate(sess.created_at)}
       · Hardcore: ${sess.rules?.hardcore ? 'Ja' : 'Nej'} · Cuck: ${sess.rules?.cuck ? 'Ja' : 'Nej'}
     </div>
     <div class="divider"></div>
-    ${rows}
-  `;
+    ${rows}`;
+
+            // Show clickable rounds list
+            const rl = document.getElementById('sd-rounds-list');
+            if (_detailRounds.length > 0) {
+                rl.innerHTML = `<div class="card-title" style="margin-top:8px">Rundor</div>` +
+                    [..._detailRounds].reverse().map(r => {
+                        const scores = pids.map(pid => {
+                            const p = getPlayer(pid);
+                            const entry = r.player_results[pid];
+                            if (!p || !entry) return '';
+                            const c = colorFor(p);
+                            return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p</span>`;
+                        }).filter(Boolean).join(' · ');
+                        return `<div class="round-card" onclick="showDetailRound('${r.id}')" style="cursor:pointer">
+                            <div class="round-header">
+                                <div style="font-weight:600">Runda ${r.round_number}</div>
+                                <div style="font-size:12px;color:var(--text2)">${fmtDate(r.created_at)}</div>
+                            </div>
+                            <div>${scores}</div>
+                        </div>`;
+                    }).join('');
+            } else {
+                rl.innerHTML = '';
+            }
 
             document.getElementById('sd-delete-btn').onclick = () => deleteSession(id);
             openModal('modal-session-detail');
         }
 
+        // Show round detail from session detail modal
+        function showDetailRound(roundId) {
+            const round = _detailRounds.find(r => r.id === roundId);
+            if (!round) return;
+            const sess = allSessions.find(s => s.id === currentDetailSessionId);
+            if (!sess) return;
+            const pids = sess.player_ids || [];
+            document.getElementById('rd-title').textContent = `Runda ${round.round_number}`;
+
+            const html = pids.map(pid => {
+                const p = getPlayer(pid);
+                const entry = round.player_results[pid];
+                if (!p || !entry) return '';
+                const c = colorFor(p);
+                const drinkLabel = entry.drink_sips > 0 ? `<span style="color:var(--accent);font-weight:700">Dricker ${entry.drink_sips}</span>` : '';
+                const giveLabel = entry.give_sips > 0 ? `<span style="color:var(--green);font-weight:700">Delar ut ${entry.give_sips}</span>` : '';
+                const sipSummary = [drinkLabel, giveLabel].filter(Boolean).join(' · ');
+                const lapInfo = entry.lap_crossed ? `<div style="font-size:11px;color:var(--purple);margin-top:2px">🔄 Varv ${entry.lap_before} → ${entry.lap_after}</div>` : '';
+                const evList = (entry.events || []).map(ev => {
+                    const sipStr = ev.sips > 0 ? `<span style="color:var(--green)">${ev.sips} ge</span>`
+                        : ev.sips < 0 ? `<span style="color:var(--accent)">${Math.abs(ev.sips)} drick</span>` : '';
+                    return `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:2px 0"><span>${ev.desc}</span>${sipStr}</div>`;
+                }).join('');
+                return `<div class="result-section" style="margin-bottom:10px">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                        ${avatarEl(p, 36)}
+                        <div style="flex:1">
+                            <div style="font-weight:700">${p.name}</div>
+                            <div style="font-size:12px;color:${c.hex}">${entry.round_pts}p (${entry.card_count} kort)</div>
+                            ${lapInfo}
+                        </div>
+                        <div style="text-align:right;font-size:13px">${sipSummary}</div>
+                    </div>
+                    <div style="background:var(--bg);border-radius:8px;padding:8px">${evList}</div>
+                </div>`;
+            }).join('');
+
+            document.getElementById('rd-content').innerHTML = html;
+            openModal('modal-round-detail');
+        }
+
         async function deleteSession(id) {
             if (!await requireAdminPassword('ta bort session')) return;
+
+            // Load session rounds to reverse player stats
+            const { data: sessRounds } = await sb.from('rounds').select('*').eq('session_id', id);
+            const sess = allSessions.find(s => s.id === id);
+            const pids = sess?.player_ids || [];
+
+            // Reverse stats for each player
+            for (const pid of pids) {
+                const p = getPlayer(pid);
+                if (!p) continue;
+                const rounds = sessRounds || [];
+                const totalRoundsInSession = rounds.length;
+                const totalDrinkInSession = rounds.reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
+                const totalGiveInSession = rounds.reduce((a, r) => a + (r.player_results[pid]?.give_sips || 0), 0);
+                const allPtsInSession = rounds.map(r => r.player_results[pid]?.round_pts || 0);
+                const totalAllTimeInSession = allPtsInSession.reduce((a, b) => a + b, 0);
+
+                const newTotalRounds = Math.max(0, (p.total_rounds || 0) - totalRoundsInSession);
+                const newDrink = Math.max(0, (p.total_drink_sips || 0) - totalDrinkInSession);
+                const newGive = Math.max(0, (p.total_give_sips || 0) - totalGiveInSession);
+                const newAllTimePts = Math.max(0, (p.all_time_pts || 0) - totalAllTimeInSession);
+                // Remove this session's round pts from all_round_pts array
+                const newAllRoundPts = (p.all_round_pts || []).slice(0, Math.max(0, (p.all_round_pts || []).length - totalRoundsInSession));
+                const newAvg = newAllRoundPts.length > 0 ? newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length : 0;
+
+                await sb.from('players').update({
+                    total_rounds: newTotalRounds,
+                    total_drink_sips: newDrink,
+                    total_give_sips: newGive,
+                    all_time_pts: newAllTimePts,
+                    all_round_pts: newAllRoundPts,
+                    avg_pts: newAvg,
+                    // Reset session pts and lap since session is gone
+                    total_pts: 0,
+                    current_lap: 1,
+                }).eq('id', pid);
+            }
+
             const { error } = await sb.from('sessions').delete().eq('id', id);
             if (error) { showToast('Fel: ' + error.message); return; }
+
             if (activeSession?.id === id) {
                 activeSession = null;
                 allRounds = [];
                 localStorage.removeItem('tcg2_active_session');
             }
+            await loadPlayers();
             await loadSessions();
             closeModal('modal-session-detail');
             renderHistory();
-            showToast('Session borttagen');
+            showToast('Session och all data borttagen');
         }
 
         // ============================================================
