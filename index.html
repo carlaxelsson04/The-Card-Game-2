@@ -811,9 +811,26 @@
             cuck: false, cuckPlayers: [],   // array: flera spelare kan få cuck rule
         };
 
-        // Password modal — replaces browser prompt()
+        // ============================================================
+        // MODAL HELPERS
+        // ============================================================
+        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('open');
+            // If closing password modal without success, reject the promise
+            if (id === 'modal-password' && _pwResolve) { _pwResolve(false); _pwResolve = null; }
+        }
+        function closeModalOverlay(id, e) { if (e && e.target === document.getElementById(id)) closeModal(id); }
+
+        // ============================================================
+        // PASSWORD MODAL — own in-app modal, never uses browser prompt()
+        // ============================================================
         let _pwResolve = null;
         function requireAdminPassword(action) {
+            // Close any open modal first so pw modal is always on top
+            document.querySelectorAll('.modal-overlay.open').forEach(el => {
+                if (el.id !== 'modal-password') el.classList.remove('open');
+            });
             return new Promise(resolve => {
                 _pwResolve = resolve;
                 document.getElementById('pw-action-label').textContent = 'Åtgärd: ' + action;
@@ -826,19 +843,15 @@
         function submitPassword() {
             const val = document.getElementById('pw-input').value;
             if (val === ADMIN_PASSWORD) {
-                closeModal('modal-password');
-                if (_pwResolve) { _pwResolve(true); _pwResolve = null; }
+                document.getElementById('modal-password').classList.remove('open');
+                const resolve = _pwResolve;
+                _pwResolve = null;
+                if (resolve) resolve(true);   // resolve AFTER clearing _pwResolve so closeModal doesn't reject
             } else {
                 document.getElementById('pw-error').style.display = 'block';
                 document.getElementById('pw-input').value = '';
                 document.getElementById('pw-input').focus();
             }
-        }
-        // Override closeModal for password modal to resolve false
-        const _origCloseModal = id => document.getElementById(id).classList.remove('open');
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('open');
-            if (id === 'modal-password' && _pwResolve) { _pwResolve(false); _pwResolve = null; }
         }
 
         // ============================================================
@@ -997,9 +1010,6 @@
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), dur);
         }
-
-        function openModal(id) { document.getElementById(id).classList.add('open'); }
-        function closeModalOverlay(id, e) { if (e && e.target === document.getElementById(id)) closeModal(id); }
 
         function buildChips(playerIds, containerId, onclickFn) {
             const wrap = document.getElementById(containerId);
