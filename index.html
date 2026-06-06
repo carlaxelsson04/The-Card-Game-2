@@ -754,11 +754,7 @@
                 <div id="ev-67-detail" style="display:none" class="mt8">
                     <div class="input-label">Spelare</div>
                     <div id="ev-67-chips" class="chip-wrap"></div>
-                    <div class="input-label mt8">Typ</div>
-                    <div class="chip-wrap">
-                        <div class="chip" id="chip-hard" onclick="set67Type('hard')">Hard</div>
-                        <div class="chip" id="chip-soft" onclick="set67Type('soft')">Soft</div>
-                    </div>
+                    <div id="chip-67-auto" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
                 </div>
 
                 <div class="toggle-row" id="cuck-toggle-row" style="display:none">
@@ -1100,11 +1096,9 @@
                 }
             });
 
-            // 2. Hard 6/7 kräver exakt 2 kort — annars tvinga soft
-            if (events.ev67 && events.ev67Player && events.ev67Type === 'hard') {
-                if ((cardCounts[events.ev67Player] || 0) !== 2) {
-                    events.ev67Type = 'soft';
-                }
+            // 2. Hard/Soft 6/7 auto-deriveras från kortantal — exakt 2 = Hard, annars Soft
+            if (events.ev67 && events.ev67Player) {
+                events.ev67Type = (cardCounts[events.ev67Player] || 0) === 2 ? 'hard' : 'soft';
             }
 
             // 3. Knackning: vann/förlorade bestäms av om knackaren har lägst poäng
@@ -1224,14 +1218,10 @@
                 res[events.snapoutPlayer].events.push({ desc: 'Snap Out', sips: 2 });
             }
 
-            // 8. 6/7 — ger endast klunkar till spelare som fick det (dela ut), inga minusklunkar för andra
+            // 8. 6/7 — loggad som händelse, inga klunkar beräknas (reglerna bestäms av spelarna)
             if (events.ev67 && events.ev67Player) {
-                const p67 = events.ev67Player;
-                const others = pids.filter(pid => pid !== p67);
                 const label = events.ev67Type === 'hard' ? 'Hard 6/7! 🎉' : 'Soft 6/7! 🎉';
-                const giveAmt = others.length * (events.ev67Type === 'hard' ? 2 : 1); // ger 2 per person (hard) eller 1 (soft)
-                res[p67].giveSips += giveAmt;
-                res[p67].events.push({ desc: label, sips: giveAmt });
+                res[events.ev67Player].events.push({ desc: label, sips: 0 });
             }
 
             // 9. Cuck rule — kan gälla flera spelare
@@ -1588,10 +1578,8 @@
             buildChips(pids, 'ev-67-chips', 'set67Player');
             buildCuckChips(pids);
 
-            ['chip-hard', 'chip-soft'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.remove('selected');
-            });
+            const autoLabel = document.getElementById('chip-67-auto');
+            if (autoLabel) autoLabel.textContent = '';
 
             openModal('modal-round');
         }
@@ -1620,22 +1608,10 @@
                 else hint.textContent = '';
             }
 
-            // Update hard/soft 6/7 availability if this player is the 6/7 player
+            // Update auto 6/7 label if this player is already selected as 6/7 player
             if (roundState.ev67Player === pid) {
-                updateHardSoftVisibility(pid);
-            }
-        }
-
-        function updateHardSoftVisibility(pid) {
-            const cards = roundState.cardCounts[pid] || 0;
-            const hardBtn = document.getElementById('chip-hard');
-            if (hardBtn) {
-                hardBtn.style.display = cards === 2 ? 'inline-flex' : 'none';
-                if (cards !== 2 && roundState.ev67Type === 'hard') {
-                    roundState.ev67Type = 'soft';
-                    document.getElementById('chip-soft')?.classList.add('selected');
-                    hardBtn.classList.remove('selected');
-                }
+                const label = document.getElementById('chip-67-auto');
+                if (label) label.textContent = cards === 2 ? 'Hard (2 kort)' : 'Soft (fler än 2 kort)';
             }
         }
 
@@ -1657,12 +1633,10 @@
         function set67Player(pid) {
             roundState.ev67Player = pid;
             selectChip('ev-67-chips', pid);
-            updateHardSoftVisibility(pid);
-        }
-        function set67Type(type) {
-            roundState.ev67Type = type;
-            document.getElementById('chip-hard').classList.toggle('selected', type === 'hard');
-            document.getElementById('chip-soft').classList.toggle('selected', type === 'soft');
+            // Show auto-derived type based on card count
+            const cards = roundState.cardCounts[pid] || 0;
+            const label = document.getElementById('chip-67-auto');
+            if (label) label.textContent = cards === 2 ? 'Hard (2 kort)' : 'Soft (fler än 2 kort)';
         }
 
         // Cuck: multiselect — toggle on/off per spelare
@@ -1688,7 +1662,6 @@
 
             if (roundState.knock && !roundState.knockPlayer) { showToast('Välj vem som knackade'); return; }
             if (roundState.ev67 && !roundState.ev67Player) { showToast('Välj 6/7-spelare'); return; }
-            if (roundState.ev67 && !roundState.ev67Type) { showToast('Välj Hard eller Soft 6/7'); return; }
             if (roundState.cuck && roundState.cuckPlayers.length === 0) { showToast('Välj minst en cuck-spelare'); return; }
 
             const btn = document.getElementById('save-round-btn');
