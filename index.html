@@ -785,12 +785,12 @@
     </div>
 
     <!-- MODAL: RUNDDETALJ (klickbar från rundlistan) -->
-    <div class="modal-overlay" id="modal-round-detail" onclick="closeModalOverlay('modal-round-detail',event)">
+    <div class="modal-overlay" id="modal-round-detail" onclick="closeRoundDetailModal(event)">
         <div class="modal">
             <div class="modal-handle"></div>
             <div class="modal-title" id="rd-title">Runda</div>
             <div id="rd-content"></div>
-            <button class="btn btn-ghost mt16" onclick="closeModal('modal-round-detail')">Stäng</button>
+            <button class="btn btn-ghost mt16" onclick="closeRoundDetailModal()">Stäng</button>
         </div>
     </div>
 
@@ -1397,6 +1397,7 @@
                 noMsg.style.display = 'block';
                 content.style.display = 'none';
                 document.getElementById('game-session-label').textContent = 'Ingen aktiv session';
+                document.getElementById('end-session-btn').style.display = 'none';
                 return;
             }
             noMsg.style.display = 'none';
@@ -1624,18 +1625,19 @@
             const el = document.getElementById('sv-' + pid);
             if (el) {
                 el.textContent = val;
-                // Always use player color — negative scores are still that player's result
-                el.style.color = val === 0 ? 'var(--text2)' : colorFor(getPlayer(pid)).hex;
+                const player = getPlayer(pid);
+                const playerColor = player ? colorFor(player).hex : 'var(--text2)';
+                el.style.color = val === 0 ? 'var(--text2)' : playerColor;
             }
         }
 
         function adjustCards(pid, delta) {
             const proposed = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
+            const allPids = activeSession?.player_ids || [];
 
-            // Only one player can have 0 cards (snap out). If another already has 0, block this one at 1.
+            // Only one player can have 0 cards (snap out)
             if (proposed === 0) {
-                const pids = activeSession?.player_ids || [];
-                const someoneElseHasZero = pids.some(p => p !== pid && (roundState.cardCounts[p] || 0) === 0);
+                const someoneElseHasZero = allPids.some(p => p !== pid && (roundState.cardCounts[p] || 0) === 0);
                 if (someoneElseHasZero) {
                     showToast('Bara en spelare kan snappa ut per runda');
                     return;
@@ -1643,7 +1645,7 @@
             }
 
             roundState.cardCounts[pid] = proposed;
-            const cards = roundState.cardCounts[pid];
+            const cards = proposed;
             const el = document.getElementById('cc-' + pid);
             if (el) el.textContent = cards;
 
@@ -1655,9 +1657,8 @@
                 else hint.textContent = '';
             }
 
-            // Rebuild 6/7 chip list live (filter changes as card counts change)
-            const pids = activeSession?.player_ids || [];
-            buildChips(pids, 'ev-67-chips', 'set67Player', p => (roundState.cardCounts[p] || 0) >= 2);
+            // Rebuild 6/7 chip list live
+            buildChips(allPids, 'ev-67-chips', 'set67Player', p => (roundState.cardCounts[p] || 0) >= 2);
             // If selected 6/7 player now has <2 cards, deselect them
             if (roundState.ev67Player && (roundState.cardCounts[roundState.ev67Player] || 0) < 2) {
                 roundState.ev67Player = null;
@@ -1838,6 +1839,7 @@
             }).join('');
 
             document.getElementById('rd-content').innerHTML = html || '<div style="color:var(--text2)">Ingen data</div>';
+            _roundDetailFromHistory = false;
             openModal('modal-round-detail');
         }
 
@@ -2147,7 +2149,8 @@
 
         let currentDetailSessionId = null;
 
-        let _detailRounds = []; // rounds loaded for detail modal
+        let _detailRounds = [];
+        let _roundDetailFromHistory = false; // track if round detail was opened from session detail
 
         async function showSessionDetail(id) {
             currentDetailSessionId = id;
@@ -2255,28 +2258,21 @@
             }).join('');
 
             document.getElementById('rd-content').innerHTML = html;
-            // Hide session detail modal so round detail is on top; restore it when closed
+            // Slide session detail behind, bring round detail forward
+            _roundDetailFromHistory = true;
             document.getElementById('modal-session-detail').classList.remove('open');
             document.getElementById('modal-round-detail').classList.add('open');
-            // When round detail closes, bring session detail back
+        }
+
+        function closeRoundDetailModal(e) {
             const overlay = document.getElementById('modal-round-detail');
-            const restoreSession = () => {
+            if (e && e.target !== overlay) return;
+            overlay.classList.remove('open');
+            // Only restore session detail if that's where we came from
+            if (_roundDetailFromHistory && currentDetailSessionId) {
                 document.getElementById('modal-session-detail').classList.add('open');
-                overlay.removeEventListener('click', handler);
-            };
-            const btnClose = overlay.querySelector('.btn-ghost');
-            if (btnClose) {
-                const oldOnclick = btnClose.onclick;
-                btnClose.onclick = () => {
-                    if (oldOnclick) oldOnclick();
-                    restoreSession();
-                };
             }
-            // Also restore if clicking overlay background
-            const handler = (e) => {
-                if (e.target === overlay) restoreSession();
-            };
-            overlay.addEventListener('click', handler);
+            _roundDetailFromHistory = false;
         }
 
         async function deleteSession(id) {
