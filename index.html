@@ -2,1426 +2,1428 @@
 <html lang="sv">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="TCG2">
-  <meta name="theme-color" content="#0f0f1a">
-  <title>The Card Game 2</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TCG2">
+    <meta name="theme-color" content="#0f0f1a">
+    <title>The Card Game 2</title>
 
-  <!-- ============================================================
+    <!-- ============================================================
   KONFIGURERA HÄR: klistra in dina Supabase-nycklar
   ============================================================ -->
-  <script>
-    const SUPABASE_URL = sb_publishable_pyrN38ZNdxuCG_hvqfl_yw_LQxBHVZ3;
-    const SUPABASE_KEY = sb_secret_ - XzuZi1slKZgSUgmYXx_0w_AgA8d53f;
-  </script>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-
-  <style>
-    :root {
-      --bg: #0f0f1a;
-      --surface: #1a1a2e;
-      --surface2: #16213e;
-      --surface3: #0f3460;
-      --accent: #e94560;
-      --accent2: #f5a623;
-      --green: #27ae60;
-      --blue: #3498db;
-      --purple: #9b59b6;
-      --text: #eaeaea;
-      --text2: #a0a0b0;
-      --border: #2a2a4a;
-      --card-radius: 16px;
-      --btn-radius: 12px;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* NAV */
-    .nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      z-index: 100;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-
-    .nav-btn {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 10px 4px 8px;
-      background: none;
-      border: none;
-      color: var(--text2);
-      font-size: 10px;
-      gap: 4px;
-      cursor: pointer;
-      transition: color 0.2s;
-    }
-
-    .nav-btn.active {
-      color: var(--accent);
-    }
-
-    .nav-btn svg {
-      width: 22px;
-      height: 22px;
-    }
-
-    /* PAGES */
-    .page {
-      display: none;
-      padding: 16px 16px 90px;
-      min-height: 100vh;
-    }
-
-    .page.active {
-      display: block;
-    }
-
-    /* LOADING OVERLAY */
-    #loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 500;
-      gap: 16px;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    #setup-banner {
-      background: linear-gradient(135deg, rgba(233, 69, 96, 0.15), rgba(155, 89, 182, 0.15));
-      border: 1px solid rgba(233, 69, 96, 0.4);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
-      display: none;
-    }
-
-    /* HEADER */
-    .page-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-      padding-top: 8px;
-    }
-
-    .page-title {
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    .page-subtitle {
-      font-size: 13px;
-      color: var(--text2);
-      margin-top: 2px;
-    }
-
-    /* CARDS */
-    .card {
-      background: var(--surface);
-      border-radius: var(--card-radius);
-      border: 1px solid var(--border);
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-
-    .card-title {
-      font-size: 13px;
-      color: var(--text2);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-    }
-
-    /* BUTTONS */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px 20px;
-      border-radius: var(--btn-radius);
-      font-size: 15px;
-      font-weight: 600;
-      border: none;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-      width: 100%;
-      text-align: center;
-    }
-
-    .btn:active {
-      opacity: 0.8;
-      transform: scale(0.98);
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-
-    .btn-secondary {
-      background: var(--surface3);
-      color: var(--text);
-    }
-
-    .btn-success {
-      background: var(--green);
-      color: white;
-    }
-
-    .btn-warning {
-      background: var(--accent2);
-      color: #111;
-    }
-
-    .btn-danger {
-      background: rgba(233, 69, 96, 0.2);
-      color: var(--accent);
-      border: 1px solid rgba(233, 69, 96, 0.3);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text2);
-    }
-
-    .btn-sm {
-      padding: 8px 14px;
-      font-size: 13px;
-      width: auto;
-    }
-
-    /* INPUT */
-    .input-group {
-      margin-bottom: 12px;
-    }
-
-    .input-label {
-      font-size: 13px;
-      color: var(--text2);
-      margin-bottom: 6px;
-      display: block;
-    }
-
-    .input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      color: var(--text);
-      font-size: 15px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .input:focus {
-      border-color: var(--accent);
-    }
-
-    .input[type=number] {
-      -moz-appearance: textfield;
-    }
-
-    .input[type=number]::-webkit-inner-spin-button {
-      display: none;
-    }
-
-    /* TOGGLE */
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .toggle-row:last-child {
-      border-bottom: none;
-    }
-
-    .toggle-label {
-      font-size: 14px;
-    }
-
-    .toggle-desc {
-      font-size: 12px;
-      color: var(--text2);
-      margin-top: 2px;
-    }
-
-    .toggle {
-      position: relative;
-      width: 48px;
-      height: 26px;
-      background: var(--border);
-      border-radius: 13px;
-      cursor: pointer;
-      transition: background 0.2s;
-      flex-shrink: 0;
-    }
-
-    .toggle.on {
-      background: var(--accent);
-    }
-
-    .toggle::after {
-      content: '';
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      background: white;
-      border-radius: 50%;
-      top: 3px;
-      left: 3px;
-      transition: left 0.2s;
-    }
-
-    .toggle.on::after {
-      left: 25px;
-    }
-
-    /* STEPPER */
-    .score-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px;
-      background: var(--surface2);
-      border-radius: 12px;
-      margin-bottom: 8px;
-    }
-
-    .score-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .score-val {
-      width: 44px;
-      text-align: center;
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .stepper-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-      font-size: 20px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface3);
-      color: var(--text);
-      transition: background 0.15s;
-    }
-
-    .stepper-btn:active {
-      background: var(--accent);
-    }
-
-    /* AVATAR */
-    .avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    /* PLAYER ITEM */
-    .player-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: var(--surface2);
-      border-radius: 12px;
-      margin-bottom: 8px;
-      border: 1px solid var(--border);
-    }
-
-    .player-info {
-      flex: 1;
-    }
-
-    .player-name {
-      font-size: 15px;
-      font-weight: 600;
-    }
-
-    .player-stats {
-      font-size: 12px;
-      color: var(--text2);
-      margin-top: 2px;
-    }
-
-    /* STAT GRID */
-    .stat-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .stat-box {
-      background: var(--surface2);
-      border-radius: 12px;
-      padding: 12px;
-      border: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .stat-val {
-      font-size: 24px;
-      font-weight: 700;
-    }
-
-    .stat-lbl {
-      font-size: 11px;
-      color: var(--text2);
-      margin-top: 4px;
-    }
-
-    /* LEADERBOARD */
-    .lb-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .lb-row:last-child {
-      border-bottom: none;
-    }
-
-    .lb-rank {
-      font-size: 18px;
-      font-weight: 700;
-      width: 28px;
-      text-align: center;
-    }
-
-    /* CHIPS */
-    .chip-wrap {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .chip {
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 600;
-      border: 2px solid var(--border);
-      cursor: pointer;
-      transition: all 0.15s;
-      background: var(--surface2);
-      color: var(--text);
-    }
-
-    .chip.selected {
-      border-color: var(--accent);
-      background: rgba(233, 69, 96, 0.15);
-      color: var(--accent);
-    }
-
-    /* MODAL */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      z-index: 200;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-    }
-
-    .modal-overlay.open {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    .modal {
-      background: var(--surface);
-      border-radius: 24px 24px 0 0;
-      padding: 24px 20px 40px;
-      width: 100%;
-      max-width: 520px;
-      transform: translateY(100%);
-      transition: transform 0.3s ease;
-      max-height: 92vh;
-      overflow-y: auto;
-    }
-
-    .modal-overlay.open .modal {
-      transform: translateY(0);
-    }
-
-    .modal-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .modal-handle {
-      width: 40px;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      margin: 0 auto 20px;
-    }
-
-    /* TOAST */
-    .toast {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-80px);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 20px;
-      font-size: 14px;
-      font-weight: 500;
-      z-index: 300;
-      transition: transform 0.3s;
-      white-space: nowrap;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* ROUND CARD */
-    .round-card {
-      background: var(--surface2);
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 8px;
-      border: 1px solid var(--border);
-    }
-
-    .round-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    /* EMPTY */
-    .empty {
-      text-align: center;
-      padding: 48px 16px;
-      color: var(--text2);
-    }
-
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 12px;
-    }
-
-    /* DIVIDER */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 12px 0;
-    }
-
-    /* SESSION ITEM */
-    .session-item {
-      background: var(--surface2);
-      border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 8px;
-      border: 1px solid var(--border);
-      cursor: pointer;
-    }
-
-    /* SYNC DOT */
-    .sync-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      display: inline-block;
-      margin-right: 6px;
-    }
-
-    .sync-dot.offline {
-      background: var(--accent);
-    }
-
-    .mt8 {
-      margin-top: 8px;
-    }
-
-    .mt12 {
-      margin-top: 12px;
-    }
-
-    .mt16 {
-      margin-top: 16px;
-    }
-  </style>
+    <script>
+        const SUPABASE_URL = 'https://rvafomyjyztxpmyyrufc.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2YWZvbXlqeXp0eHBteXlydWZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NDcxMjcsImV4cCI6MjA5NjMyMzEyN30.2uQTbRBMPhzu-_qJ0t0CwczJAE5gxEP2-v3xMqb4mD8sb_secret_ - XzuZi1slKZgSUgmYXx_0w_AgA8d53f';
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface2: #16213e;
+            --surface3: #0f3460;
+            --accent: #e94560;
+            --accent2: #f5a623;
+            --green: #27ae60;
+            --blue: #3498db;
+            --purple: #9b59b6;
+            --text: #eaeaea;
+            --text2: #a0a0b0;
+            --border: #2a2a4a;
+            --card-radius: 16px;
+            --btn-radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* NAV */
+        .nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .nav-btn {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 4px 8px;
+            background: none;
+            border: none;
+            color: var(--text2);
+            font-size: 10px;
+            gap: 4px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .nav-btn.active {
+            color: var(--accent);
+        }
+
+        .nav-btn svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* PAGES */
+        .page {
+            display: none;
+            padding: 16px 16px 90px;
+            min-height: 100vh;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* LOADING OVERLAY */
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #setup-banner {
+            background: linear-gradient(135deg, rgba(233, 69, 96, 0.15), rgba(155, 89, 182, 0.15));
+            border: 1px solid rgba(233, 69, 96, 0.4);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        /* HEADER */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-top: 8px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .page-subtitle {
+            font-size: 13px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        /* CARDS */
+        .card {
+            background: var(--surface);
+            border-radius: var(--card-radius);
+            border: 1px solid var(--border);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        /* BUTTONS */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: var(--btn-radius);
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn:active {
+            opacity: 0.8;
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--surface3);
+            color: var(--text);
+        }
+
+        .btn-success {
+            background: var(--green);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--accent2);
+            color: #111;
+        }
+
+        .btn-danger {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--accent);
+            border: 1px solid rgba(233, 69, 96, 0.3);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text2);
+        }
+
+        .btn-sm {
+            padding: 8px 14px;
+            font-size: 13px;
+            width: auto;
+        }
+
+        /* INPUT */
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-label {
+            font-size: 13px;
+            color: var(--text2);
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input:focus {
+            border-color: var(--accent);
+        }
+
+        .input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .input[type=number]::-webkit-inner-spin-button {
+            display: none;
+        }
+
+        /* TOGGLE */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .toggle-row:last-child {
+            border-bottom: none;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+        }
+
+        .toggle-desc {
+            font-size: 12px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            background: var(--border);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .toggle.on {
+            background: var(--accent);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.2s;
+        }
+
+        .toggle.on::after {
+            left: 25px;
+        }
+
+        /* STEPPER */
+        .score-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: var(--surface2);
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+
+        .score-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-val {
+            width: 44px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .stepper-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface3);
+            color: var(--text);
+            transition: background 0.15s;
+        }
+
+        .stepper-btn:active {
+            background: var(--accent);
+        }
+
+        /* AVATAR */
+        .avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* PLAYER ITEM */
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--surface2);
+            border-radius: 12px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .player-info {
+            flex: 1;
+        }
+
+        .player-name {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .player-stats {
+            font-size: 12px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        /* STAT GRID */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-box {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .stat-lbl {
+            font-size: 11px;
+            color: var(--text2);
+            margin-top: 4px;
+        }
+
+        /* LEADERBOARD */
+        .lb-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .lb-row:last-child {
+            border-bottom: none;
+        }
+
+        .lb-rank {
+            font-size: 18px;
+            font-weight: 700;
+            width: 28px;
+            text-align: center;
+        }
+
+        /* CHIPS */
+        .chip-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .chip {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s;
+            background: var(--surface2);
+            color: var(--text);
+        }
+
+        .chip.selected {
+            border-color: var(--accent);
+            background: rgba(233, 69, 96, 0.15);
+            color: var(--accent);
+        }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            background: var(--surface);
+            border-radius: 24px 24px 0 0;
+            padding: 24px 20px 40px;
+            width: 100%;
+            max-width: 520px;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.open .modal {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .modal-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 0 auto 20px;
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-80px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 300;
+            transition: transform 0.3s;
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ROUND CARD */
+        .round-card {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .round-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        /* EMPTY */
+        .empty {
+            text-align: center;
+            padding: 48px 16px;
+            color: var(--text2);
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        /* DIVIDER */
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 12px 0;
+        }
+
+        /* SESSION ITEM */
+        .session-item {
+            background: var(--surface2);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        /* SYNC DOT */
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .sync-dot.offline {
+            background: var(--accent);
+        }
+
+        .mt8 {
+            margin-top: 8px;
+        }
+
+        .mt12 {
+            margin-top: 12px;
+        }
+
+        .mt16 {
+            margin-top: 16px;
+        }
+    </style>
 </head>
 
 <body>
 
-  <!-- LOADING -->
-  <div id="loading-overlay">
-    <div style="font-size:40px">🃏</div>
-    <div style="font-size:20px;font-weight:700">The Card Game 2</div>
-    <div class="spinner"></div>
-    <div style="font-size:13px;color:var(--text2)" id="loading-msg">Ansluter till databasen...</div>
-  </div>
-
-  <!-- SETUP BANNER (visas om nycklar saknas) -->
-  <div id="setup-banner">
-    <div style="font-size:16px;font-weight:700;margin-bottom:8px">⚙️ Setup krävs</div>
-    <div style="font-size:13px;color:var(--text2)">
-      Öppna filen i en textredigerare och klistra in dina Supabase-nycklar längst upp i &lt;script&gt;-blocket.
-      Se setup-guiden för instruktioner.
+    <!-- LOADING -->
+    <div id="loading-overlay">
+        <div style="font-size:40px">🃏</div>
+        <div style="font-size:20px;font-weight:700">The Card Game 2</div>
+        <div class="spinner"></div>
+        <div style="font-size:13px;color:var(--text2)" id="loading-msg">Ansluter till databasen...</div>
     </div>
-  </div>
 
-  <!-- HOME PAGE -->
-  <div id="page-home" class="page active">
-    <div class="page-header">
-      <div>
-        <div class="page-title">🃏 TCG2</div>
-        <div class="page-subtitle" id="home-subtitle">
-          <span class="sync-dot" id="sync-dot"></span><span id="sync-label">Ansluter...</span>
+    <!-- SETUP BANNER (visas om nycklar saknas) -->
+    <div id="setup-banner">
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px">⚙️ Setup krävs</div>
+        <div style="font-size:13px;color:var(--text2)">
+            Öppna filen i en textredigerare och klistra in dina Supabase-nycklar längst upp i &lt;script&gt;-blocket.
+            Se setup-guiden för instruktioner.
         </div>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="openNewSession()">Ny session</button>
     </div>
-    <div id="active-session-wrap" style="display:none">
-      <div class="card" style="border-color:var(--accent)">
-        <div class="card-title">Aktiv session</div>
-        <div id="active-session-info"></div>
-        <button class="btn btn-primary mt8" onclick="nav('game')">Fortsätt spela</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Snabbstatistik</div>
-      <div class="stat-grid">
-        <div class="stat-box">
-          <div class="stat-val" id="qs-sessions">-</div>
-          <div class="stat-lbl">Sessioner</div>
+
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page active">
+        <div class="page-header">
+            <div>
+                <div class="page-title">🃏 TCG2</div>
+                <div class="page-subtitle" id="home-subtitle">
+                    <span class="sync-dot" id="sync-dot"></span><span id="sync-label">Ansluter...</span>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openNewSession()">Ny session</button>
         </div>
-        <div class="stat-box">
-          <div class="stat-val" id="qs-rounds">-</div>
-          <div class="stat-lbl">Rundor</div>
+        <div id="active-session-wrap" style="display:none">
+            <div class="card" style="border-color:var(--accent)">
+                <div class="card-title">Aktiv session</div>
+                <div id="active-session-info"></div>
+                <button class="btn btn-primary mt8" onclick="nav('game')">Fortsätt spela</button>
+            </div>
         </div>
-        <div class="stat-box">
-          <div class="stat-val" id="qs-players">-</div>
-          <div class="stat-lbl">Spelare</div>
+        <div class="card">
+            <div class="card-title">Snabbstatistik</div>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-val" id="qs-sessions">-</div>
+                    <div class="stat-lbl">Sessioner</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="qs-rounds">-</div>
+                    <div class="stat-lbl">Rundor</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="qs-players">-</div>
+                    <div class="stat-lbl">Spelare</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" id="qs-sips">-</div>
+                    <div class="stat-lbl">Klunkar totalt</div>
+                </div>
+            </div>
         </div>
-        <div class="stat-box">
-          <div class="stat-val" id="qs-sips">-</div>
-          <div class="stat-lbl">Klunkar totalt</div>
+        <div class="card">
+            <div class="card-title">Hall of Fame (lägst snittpoäng, min 3 rundor)</div>
+            <div id="home-hof"></div>
         </div>
-      </div>
     </div>
-    <div class="card">
-      <div class="card-title">Hall of Fame (lägst snittpoäng, min 3 rundor)</div>
-      <div id="home-hof"></div>
-    </div>
-  </div>
 
-  <!-- GAME PAGE -->
-  <div id="page-game" class="page">
-    <div class="page-header">
-      <div>
-        <div class="page-title">Spel</div>
-        <div class="page-subtitle" id="game-session-label">Ingen aktiv session</div>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="endSession()">Avsluta</button>
-    </div>
-    <div id="no-session-msg" class="empty">
-      <div class="empty-icon">🎮</div>
-      <div>Starta en ny session från startsidan</div>
-    </div>
-    <div id="game-content" style="display:none">
-      <div class="card" id="game-scoreboard"></div>
-      <button class="btn btn-primary mt8" onclick="openRoundModal()">+ Logga runda</button>
-      <div class="mt12" id="game-rounds-list"></div>
-    </div>
-  </div>
-
-  <!-- STATS PAGE -->
-  <div id="page-stats" class="page">
-    <div class="page-header">
-      <div class="page-title">Statistik</div>
-    </div>
-    <div class="card" id="stats-player-select">
-      <div class="card-title">Välj spelare</div>
-      <div id="stats-chips" class="chip-wrap"></div>
-    </div>
-    <div id="stats-content"></div>
-  </div>
-
-  <!-- PLAYERS PAGE -->
-  <div id="page-players" class="page">
-    <div class="page-header">
-      <div class="page-title">Spelare</div>
-      <button class="btn btn-primary btn-sm" onclick="openAddPlayer()">+ Ny</button>
-    </div>
-    <div id="players-list"></div>
-  </div>
-
-  <!-- HISTORY PAGE -->
-  <div id="page-history" class="page">
-    <div class="page-header">
-      <div class="page-title">Historik</div>
-    </div>
-    <div id="history-list"></div>
-  </div>
-
-  <!-- NAV -->
-  <nav class="nav">
-    <button class="nav-btn active" onclick="nav('home')" id="nav-home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-        <polyline points="9 22 9 12 15 12 15 22" />
-      </svg>Hem
-    </button>
-    <button class="nav-btn" onclick="nav('game')" id="nav-game">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="3" width="20" height="14" rx="2" />
-        <line x1="8" y1="21" x2="16" y2="21" />
-        <line x1="12" y1="17" x2="12" y2="21" />
-      </svg>Spel
-    </button>
-    <button class="nav-btn" onclick="nav('stats')" id="nav-stats">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-      </svg>Stats
-    </button>
-    <button class="nav-btn" onclick="nav('players')" id="nav-players">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 00-3-3.87" />
-        <path d="M16 3.13a4 4 0 010 7.75" />
-      </svg>Spelare
-    </button>
-    <button class="nav-btn" onclick="nav('history')" id="nav-history">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>Historik
-    </button>
-  </nav>
-
-  <!-- MODAL: NY SESSION -->
-  <div class="modal-overlay" id="modal-new-session" onclick="closeModalOverlay('modal-new-session',event)">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-title">Ny session</div>
-      <div class="input-group">
-        <label class="input-label">Sessionsnamn (valfritt)</label>
-        <input class="input" id="ns-name" placeholder="T.ex. Fredag hemma hos Erik">
-      </div>
-      <div class="input-group">
-        <label class="input-label">Välj spelare (2-6)</label>
-        <div id="ns-player-chips" class="chip-wrap"></div>
-      </div>
-      <div class="card mt12">
-        <div class="card-title">Regelinställningar</div>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">Hardcore: Damer ger bort kort</div>
-            <div class="toggle-desc">Annars byter man (soft)</div>
-          </div>
-          <div class="toggle" id="rule-hardcore" onclick="toggleRule('hardcore')"></div>
+    <!-- GAME PAGE -->
+    <div id="page-game" class="page">
+        <div class="page-header">
+            <div>
+                <div class="page-title">Spel</div>
+                <div class="page-subtitle" id="game-session-label">Ingen aktiv session</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="endSession()">Avsluta</button>
         </div>
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">The Cuck Rule</div>
-            <div class="toggle-desc">0 snaps under en runda = 6 klunkar</div>
-          </div>
-          <div class="toggle" id="rule-cuck" onclick="toggleRule('cuck')"></div>
+        <div id="no-session-msg" class="empty">
+            <div class="empty-icon">🎮</div>
+            <div>Starta en ny session från startsidan</div>
         </div>
-      </div>
-      <button class="btn btn-success mt16" onclick="startSession()">Starta session</button>
+        <div id="game-content" style="display:none">
+            <div class="card" id="game-scoreboard"></div>
+            <button class="btn btn-primary mt8" onclick="openRoundModal()">+ Logga runda</button>
+            <div class="mt12" id="game-rounds-list"></div>
+        </div>
     </div>
-  </div>
 
-  <!-- MODAL: LÄGG TILL SPELARE -->
-  <div class="modal-overlay" id="modal-add-player" onclick="closeModalOverlay('modal-add-player',event)">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-title">Ny spelare</div>
-      <div class="input-group">
-        <label class="input-label">Namn</label>
-        <input class="input" id="ap-name" placeholder="Namn" maxlength="20"
-          onkeydown="if(event.key==='Enter')savePlayer()">
-      </div>
-      <div class="input-group">
-        <label class="input-label">Färg</label>
-        <div id="ap-colors" class="chip-wrap"></div>
-      </div>
-      <button class="btn btn-primary mt16" onclick="savePlayer()">Spara</button>
+    <!-- STATS PAGE -->
+    <div id="page-stats" class="page">
+        <div class="page-header">
+            <div class="page-title">Statistik</div>
+        </div>
+        <div class="card" id="stats-player-select">
+            <div class="card-title">Välj spelare</div>
+            <div id="stats-chips" class="chip-wrap"></div>
+        </div>
+        <div id="stats-content"></div>
     </div>
-  </div>
 
-  <!-- MODAL: LOGGA RUNDA -->
-  <div class="modal-overlay" id="modal-round" onclick="closeModalOverlay('modal-round',event)">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-title" id="round-modal-title">Runda</div>
-
-      <!-- Poäng per spelare -->
-      <div class="card-title" style="margin-bottom:6px">Poäng per spelare</div>
-      <div id="round-score-inputs"></div>
-
-      <!-- Antal kort per spelare -->
-      <div class="card-title" style="margin-bottom:6px;margin-top:12px">Antal kort per spelare</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Antalet kort avgör klunkar (ej poängen)</div>
-      <div id="round-card-count-inputs"></div>
-
-      <!-- Specialhändelser -->
-      <div class="card mt12">
-        <div class="card-title">Specialhändelser</div>
-
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">Knackning</div>
-            <div class="toggle-desc">Vem knackade?</div>
-          </div>
-          <div class="toggle" id="ev-knock" onclick="toggleEvent('knock')"></div>
+    <!-- PLAYERS PAGE -->
+    <div id="page-players" class="page">
+        <div class="page-header">
+            <div class="page-title">Spelare</div>
+            <button class="btn btn-primary btn-sm" onclick="openAddPlayer()">+ Ny</button>
         </div>
-        <div id="ev-knock-detail" style="display:none" class="mt8">
-          <div class="input-label">Knackare</div>
-          <div id="ev-knock-chips" class="chip-wrap"></div>
-          <div class="input-label mt8">Vann knackningen?</div>
-          <div class="chip-wrap">
-            <div class="chip" id="knock-win-yes" onclick="setKnockWin(true)">Ja (ger 6 klunkar)</div>
-            <div class="chip" id="knock-win-no" onclick="setKnockWin(false)">Nej (dricker 6)</div>
-          </div>
-        </div>
-
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">Snap Out</div>
-            <div class="toggle-desc">Vem snapade ut?</div>
-          </div>
-          <div class="toggle" id="ev-snapout" onclick="toggleEvent('snapout')"></div>
-        </div>
-        <div id="ev-snapout-detail" style="display:none" class="mt8">
-          <div class="input-label">Spelare</div>
-          <div id="ev-snapout-chips" class="chip-wrap"></div>
-        </div>
-
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">6/7 (hjärter 6 &amp; 7)</div>
-            <div class="toggle-desc">Vem avslutade med 6 &amp; 7?</div>
-          </div>
-          <div class="toggle" id="ev-67" onclick="toggleEvent('67')"></div>
-        </div>
-        <div id="ev-67-detail" style="display:none" class="mt8">
-          <div class="input-label">Spelare</div>
-          <div id="ev-67-chips" class="chip-wrap"></div>
-          <div class="input-label mt8">Typ</div>
-          <div class="chip-wrap">
-            <div class="chip" id="chip-hard" onclick="set67Type('hard')">Hard (bara 6&amp;7, down+shot)</div>
-            <div class="chip" id="chip-soft" onclick="set67Type('soft')">Soft (fler kort, shot)</div>
-          </div>
-        </div>
-
-        <div class="toggle-row" id="cuck-toggle-row" style="display:none">
-          <div>
-            <div class="toggle-label">Cuck Rule</div>
-            <div class="toggle-desc">Vem fick 0 snaps?</div>
-          </div>
-          <div class="toggle" id="ev-cuck" onclick="toggleEvent('cuck')"></div>
-        </div>
-        <div id="ev-cuck-detail" style="display:none" class="mt8">
-          <div class="input-label">Spelare</div>
-          <div id="ev-cuck-chips" class="chip-wrap"></div>
-        </div>
-      </div>
-
-      <button class="btn btn-success mt16" id="save-round-btn" onclick="saveRound()">Beräkna &amp; Spara</button>
+        <div id="players-list"></div>
     </div>
-  </div>
 
-  <!-- MODAL: RUNDRESULTAT -->
-  <div class="modal-overlay" id="modal-result" onclick="closeModalOverlay('modal-result',event)">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-title">Rundaresultat 🎴</div>
-      <div id="result-content"></div>
-      <button class="btn btn-primary mt16" onclick="closeModal('modal-result')">Stäng</button>
+    <!-- HISTORY PAGE -->
+    <div id="page-history" class="page">
+        <div class="page-header">
+            <div class="page-title">Historik</div>
+        </div>
+        <div id="history-list"></div>
     </div>
-  </div>
 
-  <!-- MODAL: SESSIONSDETALJ -->
-  <div class="modal-overlay" id="modal-session-detail" onclick="closeModalOverlay('modal-session-detail',event)">
-    <div class="modal">
-      <div class="modal-handle"></div>
-      <div class="modal-title" id="sd-title">Session</div>
-      <div id="sd-content"></div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-session-detail')">Stäng</button>
-        <button class="btn btn-danger" style="flex:1" id="sd-delete-btn">Ta bort session</button>
-      </div>
+    <!-- NAV -->
+    <nav class="nav">
+        <button class="nav-btn active" onclick="nav('home')" id="nav-home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>Hem
+        </button>
+        <button class="nav-btn" onclick="nav('game')" id="nav-game">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>Spel
+        </button>
+        <button class="nav-btn" onclick="nav('stats')" id="nav-stats">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>Stats
+        </button>
+        <button class="nav-btn" onclick="nav('players')" id="nav-players">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                <path d="M16 3.13a4 4 0 010 7.75" />
+            </svg>Spelare
+        </button>
+        <button class="nav-btn" onclick="nav('history')" id="nav-history">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg>Historik
+        </button>
+    </nav>
+
+    <!-- MODAL: NY SESSION -->
+    <div class="modal-overlay" id="modal-new-session" onclick="closeModalOverlay('modal-new-session',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title">Ny session</div>
+            <div class="input-group">
+                <label class="input-label">Sessionsnamn (valfritt)</label>
+                <input class="input" id="ns-name" placeholder="T.ex. Fredag hemma hos Erik">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Välj spelare (2-6)</label>
+                <div id="ns-player-chips" class="chip-wrap"></div>
+            </div>
+            <div class="card mt12">
+                <div class="card-title">Regelinställningar</div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Hardcore: Damer ger bort kort</div>
+                        <div class="toggle-desc">Annars byter man (soft)</div>
+                    </div>
+                    <div class="toggle" id="rule-hardcore" onclick="toggleRule('hardcore')"></div>
+                </div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">The Cuck Rule</div>
+                        <div class="toggle-desc">0 snaps under en runda = 6 klunkar</div>
+                    </div>
+                    <div class="toggle" id="rule-cuck" onclick="toggleRule('cuck')"></div>
+                </div>
+            </div>
+            <button class="btn btn-success mt16" onclick="startSession()">Starta session</button>
+        </div>
     </div>
-  </div>
 
-  <div id="toast" class="toast"></div>
+    <!-- MODAL: LÄGG TILL SPELARE -->
+    <div class="modal-overlay" id="modal-add-player" onclick="closeModalOverlay('modal-add-player',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title">Ny spelare</div>
+            <div class="input-group">
+                <label class="input-label">Namn</label>
+                <input class="input" id="ap-name" placeholder="Namn" maxlength="20"
+                    onkeydown="if(event.key==='Enter')savePlayer()">
+            </div>
+            <div class="input-group">
+                <label class="input-label">Färg</label>
+                <div id="ap-colors" class="chip-wrap"></div>
+            </div>
+            <button class="btn btn-primary mt16" onclick="savePlayer()">Spara</button>
+        </div>
+    </div>
 
-  <script>
-    // ============================================================
-    // CONSTANTS
-    // ============================================================
-    const COLORS = [
-      { name: 'Röd', hex: '#e94560', dark: 'rgba(233,69,96,0.2)' },
-      { name: 'Blå', hex: '#3498db', dark: 'rgba(52,152,219,0.2)' },
-      { name: 'Grön', hex: '#27ae60', dark: 'rgba(39,174,96,0.2)' },
-      { name: 'Lila', hex: '#9b59b6', dark: 'rgba(155,89,182,0.2)' },
-      { name: 'Orange', hex: '#f5a623', dark: 'rgba(245,166,35,0.2)' },
-      { name: 'Cyan', hex: '#1abc9c', dark: 'rgba(26,188,156,0.2)' },
-    ];
+    <!-- MODAL: LOGGA RUNDA -->
+    <div class="modal-overlay" id="modal-round" onclick="closeModalOverlay('modal-round',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title" id="round-modal-title">Runda</div>
 
-    const THRESHOLDS = [
-      { pts: 10, sips: 2 }, { pts: 20, sips: 4 }, { pts: 30, sips: 6 },
-      { pts: 40, sips: 8 }, { pts: 60, sips: 10 }, { pts: 80, sips: 12 },
-    ];
+            <!-- Poäng per spelare -->
+            <div class="card-title" style="margin-bottom:6px">Poäng per spelare</div>
+            <div id="round-score-inputs"></div>
 
-    // ============================================================
-    // STATE
-    // ============================================================
-    let sb = null; // Supabase client
-    let allPlayers = [];
-    let allSessions = [];
-    let allRounds = []; // rounds for active session
-    let activeSession = null;
-    let selectedStatsPlayer = null;
-    let selectedAddColor = 0;
+            <!-- Antal kort per spelare -->
+            <div class="card-title" style="margin-bottom:6px;margin-top:12px">Antal kort per spelare</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Antalet kort avgör klunkar (ej poängen)
+            </div>
+            <div id="round-card-count-inputs"></div>
 
-    let newSessionPlayers = [];
-    let newSessionRules = { hardcore: false, cuck: false };
+            <!-- Specialhändelser -->
+            <div class="card mt12">
+                <div class="card-title">Specialhändelser</div>
 
-    let roundState = {
-      scores: {},      // playerId → points
-      cardCounts: {},  // playerId → number of cards
-      knock: false, knockPlayer: null, knockWin: null,
-      snapout: false, snapoutPlayer: null,
-      ev67: false, ev67Player: null, ev67Type: null,
-      cuck: false, cuckPlayer: null,
-    };
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Knackning</div>
+                        <div class="toggle-desc">Vem knackade?</div>
+                    </div>
+                    <div class="toggle" id="ev-knock" onclick="toggleEvent('knock')"></div>
+                </div>
+                <div id="ev-knock-detail" style="display:none" class="mt8">
+                    <div class="input-label">Knackare</div>
+                    <div id="ev-knock-chips" class="chip-wrap"></div>
+                    <div class="input-label mt8">Vann knackningen?</div>
+                    <div class="chip-wrap">
+                        <div class="chip" id="knock-win-yes" onclick="setKnockWin(true)">Ja (ger 6 klunkar)</div>
+                        <div class="chip" id="knock-win-no" onclick="setKnockWin(false)">Nej (dricker 6)</div>
+                    </div>
+                </div>
 
-    // ============================================================
-    // INIT
-    // ============================================================
-    async function init() {
-      setLoading('Ansluter till databasen...');
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Snap Out</div>
+                        <div class="toggle-desc">Vem snapade ut?</div>
+                    </div>
+                    <div class="toggle" id="ev-snapout" onclick="toggleEvent('snapout')"></div>
+                </div>
+                <div id="ev-snapout-detail" style="display:none" class="mt8">
+                    <div class="input-label">Spelare</div>
+                    <div id="ev-snapout-chips" class="chip-wrap"></div>
+                </div>
 
-      if (SUPABASE_URL === 'KLISTRA_IN_DIN_SUPABASE_URL_HÄR') {
-        document.getElementById('setup-banner').style.display = 'block';
-        hideLoading();
-        showToast('Klistra in Supabase-nycklar i filen');
-        return;
-      }
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">6/7 (hjärter 6 &amp; 7)</div>
+                        <div class="toggle-desc">Vem avslutade med 6 &amp; 7?</div>
+                    </div>
+                    <div class="toggle" id="ev-67" onclick="toggleEvent('67')"></div>
+                </div>
+                <div id="ev-67-detail" style="display:none" class="mt8">
+                    <div class="input-label">Spelare</div>
+                    <div id="ev-67-chips" class="chip-wrap"></div>
+                    <div class="input-label mt8">Typ</div>
+                    <div class="chip-wrap">
+                        <div class="chip" id="chip-hard" onclick="set67Type('hard')">Hard (bara 6&amp;7, down+shot)
+                        </div>
+                        <div class="chip" id="chip-soft" onclick="set67Type('soft')">Soft (fler kort, shot)</div>
+                    </div>
+                </div>
 
-      try {
-        sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                <div class="toggle-row" id="cuck-toggle-row" style="display:none">
+                    <div>
+                        <div class="toggle-label">Cuck Rule</div>
+                        <div class="toggle-desc">Vem fick 0 snaps?</div>
+                    </div>
+                    <div class="toggle" id="ev-cuck" onclick="toggleEvent('cuck')"></div>
+                </div>
+                <div id="ev-cuck-detail" style="display:none" class="mt8">
+                    <div class="input-label">Spelare</div>
+                    <div id="ev-cuck-chips" class="chip-wrap"></div>
+                </div>
+            </div>
 
-        setLoading('Laddar spelare...');
-        await loadPlayers();
+            <button class="btn btn-success mt16" id="save-round-btn" onclick="saveRound()">Beräkna &amp; Spara</button>
+        </div>
+    </div>
 
-        setLoading('Laddar sessioner...');
-        await loadSessions();
+    <!-- MODAL: RUNDRESULTAT -->
+    <div class="modal-overlay" id="modal-result" onclick="closeModalOverlay('modal-result',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title">Rundaresultat 🎴</div>
+            <div id="result-content"></div>
+            <button class="btn btn-primary mt16" onclick="closeModal('modal-result')">Stäng</button>
+        </div>
+    </div>
 
-        // Restore active session from localStorage
-        const savedId = localStorage.getItem('tcg2_active_session');
-        if (savedId) {
-          const found = allSessions.find(s => s.id === savedId && !s.ended);
-          if (found) {
-            activeSession = found;
-            await loadRoundsForSession(activeSession.id);
-          } else {
-            localStorage.removeItem('tcg2_active_session');
-          }
-        }
+    <!-- MODAL: SESSIONSDETALJ -->
+    <div class="modal-overlay" id="modal-session-detail" onclick="closeModalOverlay('modal-session-detail',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title" id="sd-title">Session</div>
+            <div id="sd-content"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-session-detail')">Stäng</button>
+                <button class="btn btn-danger" style="flex:1" id="sd-delete-btn">Ta bort session</button>
+            </div>
+        </div>
+    </div>
 
-        // Realtime subscriptions
-        sb.channel('db-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, handlePlayerChange)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, handleSessionChange)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds' }, handleRoundChange)
-          .subscribe((status) => {
-            setSyncStatus(status === 'SUBSCRIBED');
-          });
+    <div id="toast" class="toast"></div>
 
-        hideLoading();
-        renderCurrentPage();
-      } catch (err) {
-        console.error(err);
-        hideLoading();
-        showToast('Fel: ' + err.message);
-      }
-    }
+    <script>
+        // ============================================================
+        // CONSTANTS
+        // ============================================================
+        const COLORS = [
+            { name: 'Röd', hex: '#e94560', dark: 'rgba(233,69,96,0.2)' },
+            { name: 'Blå', hex: '#3498db', dark: 'rgba(52,152,219,0.2)' },
+            { name: 'Grön', hex: '#27ae60', dark: 'rgba(39,174,96,0.2)' },
+            { name: 'Lila', hex: '#9b59b6', dark: 'rgba(155,89,182,0.2)' },
+            { name: 'Orange', hex: '#f5a623', dark: 'rgba(245,166,35,0.2)' },
+            { name: 'Cyan', hex: '#1abc9c', dark: 'rgba(26,188,156,0.2)' },
+        ];
 
-    // ============================================================
-    // LOADING
-    // ============================================================
-    function setLoading(msg) {
-      document.getElementById('loading-overlay').style.display = 'flex';
-      document.getElementById('loading-msg').textContent = msg;
-    }
-    function hideLoading() {
-      document.getElementById('loading-overlay').style.display = 'none';
-    }
-    function setSyncStatus(online) {
-      const dot = document.getElementById('sync-dot');
-      const lbl = document.getElementById('sync-label');
-      if (dot) dot.className = 'sync-dot' + (online ? '' : ' offline');
-      if (lbl) lbl.textContent = online ? 'Live' : 'Offline';
-    }
+        const THRESHOLDS = [
+            { pts: 10, sips: 2 }, { pts: 20, sips: 4 }, { pts: 30, sips: 6 },
+            { pts: 40, sips: 8 }, { pts: 60, sips: 10 }, { pts: 80, sips: 12 },
+        ];
 
-    // ============================================================
-    // DB OPERATIONS
-    // ============================================================
-    async function loadPlayers() {
-      const { data, error } = await sb.from('players').select('*').order('name');
-      if (error) throw error;
-      allPlayers = data || [];
-    }
+        // ============================================================
+        // STATE
+        // ============================================================
+        let sb = null; // Supabase client
+        let allPlayers = [];
+        let allSessions = [];
+        let allRounds = []; // rounds for active session
+        let activeSession = null;
+        let selectedStatsPlayer = null;
+        let selectedAddColor = 0;
 
-    async function loadSessions() {
-      const { data, error } = await sb.from('sessions').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      allSessions = data || [];
-    }
+        let newSessionPlayers = [];
+        let newSessionRules = { hardcore: false, cuck: false };
 
-    async function loadRoundsForSession(sessionId) {
-      const { data, error } = await sb.from('rounds').select('*')
-        .eq('session_id', sessionId).order('round_number');
-      if (error) throw error;
-      allRounds = data || [];
-    }
-
-    function getPlayer(id) { return allPlayers.find(p => p.id === id); }
-
-    // ============================================================
-    // REALTIME HANDLERS
-    // ============================================================
-    async function handlePlayerChange(payload) {
-      await loadPlayers();
-      renderCurrentPage();
-    }
-    async function handleSessionChange(payload) {
-      await loadSessions();
-      if (activeSession) {
-        const updated = allSessions.find(s => s.id === activeSession.id);
-        if (updated) activeSession = updated;
-      }
-      renderCurrentPage();
-    }
-    async function handleRoundChange(payload) {
-      if (activeSession) {
-        await loadRoundsForSession(activeSession.id);
-      }
-      renderCurrentPage();
-    }
-
-    // ============================================================
-    // NAVIGATION
-    // ============================================================
-    let currentPage = 'home';
-    function nav(page) {
-      currentPage = page;
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('page-' + page).classList.add('active');
-      document.getElementById('nav-' + page).classList.add('active');
-      renderCurrentPage();
-    }
-    function renderCurrentPage() {
-      if (currentPage === 'home') renderHome();
-      else if (currentPage === 'game') renderGame();
-      else if (currentPage === 'stats') renderStats();
-      else if (currentPage === 'players') renderPlayers();
-      else if (currentPage === 'history') renderHistory();
-    }
-
-    // ============================================================
-    // HELPERS
-    // ============================================================
-    function colorFor(player) { return COLORS[player.color_idx] || COLORS[0]; }
-
-    function avatarEl(player, size = 44) {
-      const c = colorFor(player);
-      const initials = player.name.substring(0, 2).toUpperCase();
-      return `<div class="avatar" style="background:${c.dark};color:${c.hex};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px">${initials[0]}</div>`;
-    }
-
-    function fmtDate(ts) {
-      return new Date(ts).toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    }
-
-    function showToast(msg, dur = 2800) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), dur);
-    }
-
-    function openModal(id) { document.getElementById(id).classList.add('open'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-    function closeModalOverlay(id, e) { if (e && e.target === document.getElementById(id)) closeModal(id); }
-
-    function buildChips(playerIds, containerId, onclickFn) {
-      const wrap = document.getElementById(containerId);
-      if (!wrap) return;
-      wrap.innerHTML = playerIds.map(pid => {
-        const p = getPlayer(pid);
-        if (!p) return '';
-        return `<div class="chip" id="${containerId}-${pid}" onclick="${onclickFn}('${pid}')">${p.name}</div>`;
-      }).join('');
-    }
-
-    function selectChip(containerId, pid) {
-      document.querySelectorAll(`#${containerId} .chip`).forEach(c => c.classList.remove('selected'));
-      const el = document.getElementById(`${containerId}-${pid}`);
-      if (el) el.classList.add('selected');
-    }
-
-    // ============================================================
-    // SCORING LOGIC
-    // ============================================================
-    function computeRound(session, scores, cardCounts, events) {
-      const pids = session.player_ids;
-
-      // Base result per player
-      const res = {};
-      pids.forEach(pid => {
-        const p = getPlayer(pid);
-        const totalBefore = p ? (p.total_pts || 0) : 0;
-        res[pid] = {
-          roundPts: scores[pid] || 0,
-          cardCount: cardCounts[pid] || 0,
-          totalBefore,
-          totalAfter: totalBefore + (scores[pid] || 0),
-          drinkSips: 0,
-          giveSips: 0,
-          events: [],
+        let roundState = {
+            scores: {},      // playerId → points
+            cardCounts: {},  // playerId → number of cards
+            knock: false, knockPlayer: null, knockWin: null,
+            snapout: false, snapoutPlayer: null,
+            ev67: false, ev67Player: null, ev67Type: null,
+            cuck: false, cuckPlayer: null,
         };
-      });
 
-      // 1. Per runda: alla dricker 2
-      pids.forEach(pid => {
-        res[pid].drinkSips += 2;
-        res[pid].events.push({ desc: 'Per runda', sips: -2 });
-      });
+        // ============================================================
+        // INIT
+        // ============================================================
+        async function init() {
+            setLoading('Ansluter till databasen...');
 
-      // 2. Antal kort = antal klunkar (INTE poängen)
-      pids.forEach(pid => {
-        const cards = res[pid].cardCount;
-        if (cards > 0) {
-          res[pid].drinkSips += cards;
-          res[pid].events.push({ desc: `Antal kort (${cards} st)`, sips: -cards });
+            if (SUPABASE_URL === 'KLISTRA_IN_DIN_SUPABASE_URL_HÄR') {
+                document.getElementById('setup-banner').style.display = 'block';
+                hideLoading();
+                showToast('Klistra in Supabase-nycklar i filen');
+                return;
+            }
+
+            try {
+                sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+                setLoading('Laddar spelare...');
+                await loadPlayers();
+
+                setLoading('Laddar sessioner...');
+                await loadSessions();
+
+                // Restore active session from localStorage
+                const savedId = localStorage.getItem('tcg2_active_session');
+                if (savedId) {
+                    const found = allSessions.find(s => s.id === savedId && !s.ended);
+                    if (found) {
+                        activeSession = found;
+                        await loadRoundsForSession(activeSession.id);
+                    } else {
+                        localStorage.removeItem('tcg2_active_session');
+                    }
+                }
+
+                // Realtime subscriptions
+                sb.channel('db-changes')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, handlePlayerChange)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, handleSessionChange)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds' }, handleRoundChange)
+                    .subscribe((status) => {
+                        setSyncStatus(status === 'SUBSCRIBED');
+                    });
+
+                hideLoading();
+                renderCurrentPage();
+            } catch (err) {
+                console.error(err);
+                hideLoading();
+                showToast('Fel: ' + err.message);
+            }
         }
-      });
 
-      // 3. Tröskelkorsningar baserade på POÄNG
-      pids.forEach(pid => {
-        const before = res[pid].totalBefore;
-        const after = res[pid].totalAfter;
-        let threshSips = 0;
-        const crossed = [];
-        THRESHOLDS.forEach(t => {
-          if (before < t.pts && after >= t.pts) {
-            threshSips += t.sips;
-            crossed.push(t.pts);
-          }
-        });
-        if (threshSips > 0) {
-          res[pid].drinkSips += threshSips;
-          res[pid].events.push({ desc: `Tröskel (${crossed.join(', ')}p)`, sips: -threshSips });
+        // ============================================================
+        // LOADING
+        // ============================================================
+        function setLoading(msg) {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('loading-msg').textContent = msg;
         }
-      });
-
-      // 4. Vinnare (lägst poäng) ger 2
-      const minPts = Math.min(...pids.map(pid => res[pid].roundPts));
-      pids.filter(pid => res[pid].roundPts === minPts).forEach(pid => {
-        res[pid].giveSips += 2;
-        res[pid].events.push({ desc: 'Vinnare (lägst poäng)', sips: 2 });
-      });
-
-      // 5. Förlorare (högst poäng) dricker 2
-      const maxPts = Math.max(...pids.map(pid => res[pid].roundPts));
-      if (minPts !== maxPts) {
-        pids.filter(pid => res[pid].roundPts === maxPts).forEach(pid => {
-          res[pid].drinkSips += 2;
-          res[pid].events.push({ desc: 'Förlorare (högst poäng)', sips: -2 });
-        });
-      }
-
-      // 6. Knackning
-      if (events.knock && events.knockPlayer) {
-        const kp = events.knockPlayer;
-        if (events.knockWin) {
-          res[kp].giveSips += 6;
-          res[kp].events.push({ desc: 'Vann knackning', sips: 6 });
-        } else {
-          res[kp].drinkSips += 6;
-          res[kp].events.push({ desc: 'Förlorad knackning', sips: -6 });
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
         }
-      }
-
-      // 7. Snap Out
-      if (events.snapout && events.snapoutPlayer) {
-        res[events.snapoutPlayer].giveSips += 2;
-        res[events.snapoutPlayer].events.push({ desc: 'Snap Out', sips: 2 });
-      }
-
-      // 8. 6/7
-      if (events.ev67 && events.ev67Player) {
-        const p67 = events.ev67Player;
-        const others = pids.filter(pid => pid !== p67);
-        if (events.ev67Type === 'hard') {
-          others.forEach(pid => {
-            res[pid].drinkSips += 8;
-            res[pid].events.push({ desc: 'Hard 6/7 straff (down + shot)', sips: -8 });
-          });
-          res[p67].events.push({ desc: 'HARD 6/7! 🎉', sips: 0 });
-        } else {
-          others.forEach(pid => {
-            res[pid].drinkSips += 4;
-            res[pid].events.push({ desc: 'Soft 6/7 straff (shot)', sips: -4 });
-          });
-          res[p67].events.push({ desc: 'Soft 6/7! 🎉', sips: 0 });
+        function setSyncStatus(online) {
+            const dot = document.getElementById('sync-dot');
+            const lbl = document.getElementById('sync-label');
+            if (dot) dot.className = 'sync-dot' + (online ? '' : ' offline');
+            if (lbl) lbl.textContent = online ? 'Live' : 'Offline';
         }
-      }
 
-      // 9. Cuck rule
-      if (events.cuck && events.cuckPlayer) {
-        res[events.cuckPlayer].drinkSips += 6;
-        res[events.cuckPlayer].events.push({ desc: 'Cuck Rule (0 snaps)', sips: -6 });
-      }
+        // ============================================================
+        // DB OPERATIONS
+        // ============================================================
+        async function loadPlayers() {
+            const { data, error } = await sb.from('players').select('*').order('name');
+            if (error) throw error;
+            allPlayers = data || [];
+        }
 
-      return res;
-    }
+        async function loadSessions() {
+            const { data, error } = await sb.from('sessions').select('*').order('created_at', { ascending: false });
+            if (error) throw error;
+            allSessions = data || [];
+        }
 
-    // ============================================================
-    // HOME
-    // ============================================================
-    function renderHome() {
-      const totalRounds = allSessions.reduce((a, s) => {
-        // We don't have all rounds loaded, just show session count
-        return a;
-      }, 0);
+        async function loadRoundsForSession(sessionId) {
+            const { data, error } = await sb.from('rounds').select('*')
+                .eq('session_id', sessionId).order('round_number');
+            if (error) throw error;
+            allRounds = data || [];
+        }
 
-      document.getElementById('qs-sessions').textContent = allSessions.length;
-      document.getElementById('qs-players').textContent = allPlayers.length;
-      const totalSips = allPlayers.reduce((a, p) => a + (p.total_drink_sips || 0), 0);
-      document.getElementById('qs-sips').textContent = totalSips;
-      const totalRoundsCount = allPlayers.reduce((a, p) => a + (p.total_rounds || 0), 0);
-      // Approximate: sum of all player rounds / avg players per session
-      const avgPlayers = allSessions.length > 0
-        ? allSessions.reduce((a, s) => a + (s.player_ids || []).length, 0) / allSessions.length
-        : 1;
-      document.getElementById('qs-rounds').textContent = avgPlayers > 0
-        ? Math.round(totalRoundsCount / avgPlayers)
-        : 0;
+        function getPlayer(id) { return allPlayers.find(p => p.id === id); }
 
-      // Active session
-      const activeWrap = document.getElementById('active-session-wrap');
-      if (activeSession) {
-        activeWrap.style.display = 'block';
-        const names = (activeSession.player_ids || []).map(id => getPlayer(id)?.name || '?').join(', ');
-        document.getElementById('active-session-info').innerHTML = `
+        // ============================================================
+        // REALTIME HANDLERS
+        // ============================================================
+        async function handlePlayerChange(payload) {
+            await loadPlayers();
+            renderCurrentPage();
+        }
+        async function handleSessionChange(payload) {
+            await loadSessions();
+            if (activeSession) {
+                const updated = allSessions.find(s => s.id === activeSession.id);
+                if (updated) activeSession = updated;
+            }
+            renderCurrentPage();
+        }
+        async function handleRoundChange(payload) {
+            if (activeSession) {
+                await loadRoundsForSession(activeSession.id);
+            }
+            renderCurrentPage();
+        }
+
+        // ============================================================
+        // NAVIGATION
+        // ============================================================
+        let currentPage = 'home';
+        function nav(page) {
+            currentPage = page;
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('page-' + page).classList.add('active');
+            document.getElementById('nav-' + page).classList.add('active');
+            renderCurrentPage();
+        }
+        function renderCurrentPage() {
+            if (currentPage === 'home') renderHome();
+            else if (currentPage === 'game') renderGame();
+            else if (currentPage === 'stats') renderStats();
+            else if (currentPage === 'players') renderPlayers();
+            else if (currentPage === 'history') renderHistory();
+        }
+
+        // ============================================================
+        // HELPERS
+        // ============================================================
+        function colorFor(player) { return COLORS[player.color_idx] || COLORS[0]; }
+
+        function avatarEl(player, size = 44) {
+            const c = colorFor(player);
+            const initials = player.name.substring(0, 2).toUpperCase();
+            return `<div class="avatar" style="background:${c.dark};color:${c.hex};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px">${initials[0]}</div>`;
+        }
+
+        function fmtDate(ts) {
+            return new Date(ts).toLocaleDateString('sv-SE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showToast(msg, dur = 2800) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), dur);
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+        function closeModalOverlay(id, e) { if (e && e.target === document.getElementById(id)) closeModal(id); }
+
+        function buildChips(playerIds, containerId, onclickFn) {
+            const wrap = document.getElementById(containerId);
+            if (!wrap) return;
+            wrap.innerHTML = playerIds.map(pid => {
+                const p = getPlayer(pid);
+                if (!p) return '';
+                return `<div class="chip" id="${containerId}-${pid}" onclick="${onclickFn}('${pid}')">${p.name}</div>`;
+            }).join('');
+        }
+
+        function selectChip(containerId, pid) {
+            document.querySelectorAll(`#${containerId} .chip`).forEach(c => c.classList.remove('selected'));
+            const el = document.getElementById(`${containerId}-${pid}`);
+            if (el) el.classList.add('selected');
+        }
+
+        // ============================================================
+        // SCORING LOGIC
+        // ============================================================
+        function computeRound(session, scores, cardCounts, events) {
+            const pids = session.player_ids;
+
+            // Base result per player
+            const res = {};
+            pids.forEach(pid => {
+                const p = getPlayer(pid);
+                const totalBefore = p ? (p.total_pts || 0) : 0;
+                res[pid] = {
+                    roundPts: scores[pid] || 0,
+                    cardCount: cardCounts[pid] || 0,
+                    totalBefore,
+                    totalAfter: totalBefore + (scores[pid] || 0),
+                    drinkSips: 0,
+                    giveSips: 0,
+                    events: [],
+                };
+            });
+
+            // 1. Per runda: alla dricker 2
+            pids.forEach(pid => {
+                res[pid].drinkSips += 2;
+                res[pid].events.push({ desc: 'Per runda', sips: -2 });
+            });
+
+            // 2. Antal kort = antal klunkar (INTE poängen)
+            pids.forEach(pid => {
+                const cards = res[pid].cardCount;
+                if (cards > 0) {
+                    res[pid].drinkSips += cards;
+                    res[pid].events.push({ desc: `Antal kort (${cards} st)`, sips: -cards });
+                }
+            });
+
+            // 3. Tröskelkorsningar baserade på POÄNG
+            pids.forEach(pid => {
+                const before = res[pid].totalBefore;
+                const after = res[pid].totalAfter;
+                let threshSips = 0;
+                const crossed = [];
+                THRESHOLDS.forEach(t => {
+                    if (before < t.pts && after >= t.pts) {
+                        threshSips += t.sips;
+                        crossed.push(t.pts);
+                    }
+                });
+                if (threshSips > 0) {
+                    res[pid].drinkSips += threshSips;
+                    res[pid].events.push({ desc: `Tröskel (${crossed.join(', ')}p)`, sips: -threshSips });
+                }
+            });
+
+            // 4. Vinnare (lägst poäng) ger 2
+            const minPts = Math.min(...pids.map(pid => res[pid].roundPts));
+            pids.filter(pid => res[pid].roundPts === minPts).forEach(pid => {
+                res[pid].giveSips += 2;
+                res[pid].events.push({ desc: 'Vinnare (lägst poäng)', sips: 2 });
+            });
+
+            // 5. Förlorare (högst poäng) dricker 2
+            const maxPts = Math.max(...pids.map(pid => res[pid].roundPts));
+            if (minPts !== maxPts) {
+                pids.filter(pid => res[pid].roundPts === maxPts).forEach(pid => {
+                    res[pid].drinkSips += 2;
+                    res[pid].events.push({ desc: 'Förlorare (högst poäng)', sips: -2 });
+                });
+            }
+
+            // 6. Knackning
+            if (events.knock && events.knockPlayer) {
+                const kp = events.knockPlayer;
+                if (events.knockWin) {
+                    res[kp].giveSips += 6;
+                    res[kp].events.push({ desc: 'Vann knackning', sips: 6 });
+                } else {
+                    res[kp].drinkSips += 6;
+                    res[kp].events.push({ desc: 'Förlorad knackning', sips: -6 });
+                }
+            }
+
+            // 7. Snap Out
+            if (events.snapout && events.snapoutPlayer) {
+                res[events.snapoutPlayer].giveSips += 2;
+                res[events.snapoutPlayer].events.push({ desc: 'Snap Out', sips: 2 });
+            }
+
+            // 8. 6/7
+            if (events.ev67 && events.ev67Player) {
+                const p67 = events.ev67Player;
+                const others = pids.filter(pid => pid !== p67);
+                if (events.ev67Type === 'hard') {
+                    others.forEach(pid => {
+                        res[pid].drinkSips += 8;
+                        res[pid].events.push({ desc: 'Hard 6/7 straff (down + shot)', sips: -8 });
+                    });
+                    res[p67].events.push({ desc: 'HARD 6/7! 🎉', sips: 0 });
+                } else {
+                    others.forEach(pid => {
+                        res[pid].drinkSips += 4;
+                        res[pid].events.push({ desc: 'Soft 6/7 straff (shot)', sips: -4 });
+                    });
+                    res[p67].events.push({ desc: 'Soft 6/7! 🎉', sips: 0 });
+                }
+            }
+
+            // 9. Cuck rule
+            if (events.cuck && events.cuckPlayer) {
+                res[events.cuckPlayer].drinkSips += 6;
+                res[events.cuckPlayer].events.push({ desc: 'Cuck Rule (0 snaps)', sips: -6 });
+            }
+
+            return res;
+        }
+
+        // ============================================================
+        // HOME
+        // ============================================================
+        function renderHome() {
+            const totalRounds = allSessions.reduce((a, s) => {
+                // We don't have all rounds loaded, just show session count
+                return a;
+            }, 0);
+
+            document.getElementById('qs-sessions').textContent = allSessions.length;
+            document.getElementById('qs-players').textContent = allPlayers.length;
+            const totalSips = allPlayers.reduce((a, p) => a + (p.total_drink_sips || 0), 0);
+            document.getElementById('qs-sips').textContent = totalSips;
+            const totalRoundsCount = allPlayers.reduce((a, p) => a + (p.total_rounds || 0), 0);
+            // Approximate: sum of all player rounds / avg players per session
+            const avgPlayers = allSessions.length > 0
+                ? allSessions.reduce((a, s) => a + (s.player_ids || []).length, 0) / allSessions.length
+                : 1;
+            document.getElementById('qs-rounds').textContent = avgPlayers > 0
+                ? Math.round(totalRoundsCount / avgPlayers)
+                : 0;
+
+            // Active session
+            const activeWrap = document.getElementById('active-session-wrap');
+            if (activeSession) {
+                activeWrap.style.display = 'block';
+                const names = (activeSession.player_ids || []).map(id => getPlayer(id)?.name || '?').join(', ');
+                document.getElementById('active-session-info').innerHTML = `
       <div style="font-weight:600;font-size:15px">${activeSession.name}</div>
       <div style="color:var(--text2);font-size:13px;margin-top:4px">${names}</div>
       <div style="color:var(--text2);font-size:12px;margin-top:2px">${allRounds.length} rundor spelade</div>
     `;
-      } else {
-        activeWrap.style.display = 'none';
-      }
+            } else {
+                activeWrap.style.display = 'none';
+            }
 
-      // Hall of Fame
-      const hof = document.getElementById('home-hof');
-      const eligible = allPlayers.filter(p => (p.total_rounds || 0) >= 3);
-      if (eligible.length === 0) {
-        hof.innerHTML = '<div style="color:var(--text2);font-size:13px">Spela fler rundor för att se statistik</div>';
-      } else {
-        const sorted = [...eligible].sort((a, b) => (a.avg_pts || 0) - (b.avg_pts || 0));
-        hof.innerHTML = sorted.slice(0, 5).map((p, i) => {
-          const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i];
-          const c = colorFor(p);
-          return `<div class="lb-row">
+            // Hall of Fame
+            const hof = document.getElementById('home-hof');
+            const eligible = allPlayers.filter(p => (p.total_rounds || 0) >= 3);
+            if (eligible.length === 0) {
+                hof.innerHTML = '<div style="color:var(--text2);font-size:13px">Spela fler rundor för att se statistik</div>';
+            } else {
+                const sorted = [...eligible].sort((a, b) => (a.avg_pts || 0) - (b.avg_pts || 0));
+                hof.innerHTML = sorted.slice(0, 5).map((p, i) => {
+                    const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i];
+                    const c = colorFor(p);
+                    return `<div class="lb-row">
         <div class="lb-rank">${medal}</div>
         ${avatarEl(p, 36)}
         <div style="flex:1;margin-left:8px"><div style="font-weight:600">${p.name}</div><div style="font-size:12px;color:var(--text2)">${p.total_rounds} rundor</div></div>
         <div style="font-weight:700;color:${c.hex}">${(p.avg_pts || 0).toFixed(1)}p</div>
       </div>`;
-        }).join('');
-      }
-    }
+                }).join('');
+            }
+        }
 
-    // ============================================================
-    // NEW SESSION
-    // ============================================================
-    function openNewSession() {
-      newSessionPlayers = [];
-      newSessionRules = { hardcore: false, cuck: false };
-      document.getElementById('ns-name').value = '';
-      document.getElementById('rule-hardcore').classList.remove('on');
-      document.getElementById('rule-cuck').classList.remove('on');
-      renderNsChips();
-      openModal('modal-new-session');
-    }
+        // ============================================================
+        // NEW SESSION
+        // ============================================================
+        function openNewSession() {
+            newSessionPlayers = [];
+            newSessionRules = { hardcore: false, cuck: false };
+            document.getElementById('ns-name').value = '';
+            document.getElementById('rule-hardcore').classList.remove('on');
+            document.getElementById('rule-cuck').classList.remove('on');
+            renderNsChips();
+            openModal('modal-new-session');
+        }
 
-    function renderNsChips() {
-      const wrap = document.getElementById('ns-player-chips');
-      if (allPlayers.length === 0) {
-        wrap.innerHTML = '<div style="color:var(--text2);font-size:13px">Lägg till spelare under "Spelare" först</div>';
-        return;
-      }
-      wrap.innerHTML = allPlayers.map(p => {
-        const sel = newSessionPlayers.includes(p.id);
-        const c = colorFor(p);
-        return `<div class="chip ${sel ? 'selected' : ''}"
+        function renderNsChips() {
+            const wrap = document.getElementById('ns-player-chips');
+            if (allPlayers.length === 0) {
+                wrap.innerHTML = '<div style="color:var(--text2);font-size:13px">Lägg till spelare under "Spelare" först</div>';
+                return;
+            }
+            wrap.innerHTML = allPlayers.map(p => {
+                const sel = newSessionPlayers.includes(p.id);
+                const c = colorFor(p);
+                return `<div class="chip ${sel ? 'selected' : ''}"
       style="${sel ? `border-color:${c.hex};background:${c.dark};color:${c.hex}` : ''}"
       onclick="toggleNsPlayer('${p.id}')">${p.name}</div>`;
-      }).join('');
-    }
+            }).join('');
+        }
 
-    function toggleNsPlayer(id) {
-      const idx = newSessionPlayers.indexOf(id);
-      if (idx >= 0) newSessionPlayers.splice(idx, 1);
-      else if (newSessionPlayers.length < 6) newSessionPlayers.push(id);
-      else { showToast('Max 6 spelare'); return; }
-      renderNsChips();
-    }
+        function toggleNsPlayer(id) {
+            const idx = newSessionPlayers.indexOf(id);
+            if (idx >= 0) newSessionPlayers.splice(idx, 1);
+            else if (newSessionPlayers.length < 6) newSessionPlayers.push(id);
+            else { showToast('Max 6 spelare'); return; }
+            renderNsChips();
+        }
 
-    function toggleRule(rule) {
-      newSessionRules[rule] = !newSessionRules[rule];
-      document.getElementById('rule-' + rule).classList.toggle('on', newSessionRules[rule]);
-    }
+        function toggleRule(rule) {
+            newSessionRules[rule] = !newSessionRules[rule];
+            document.getElementById('rule-' + rule).classList.toggle('on', newSessionRules[rule]);
+        }
 
-    async function startSession() {
-      if (newSessionPlayers.length < 2) { showToast('Välj minst 2 spelare'); return; }
-      const btn = document.querySelector('#modal-new-session .btn-success');
-      btn.textContent = 'Sparar...'; btn.disabled = true;
-      try {
-        const name = document.getElementById('ns-name').value.trim() || `Session ${allSessions.length + 1}`;
-        const { data, error } = await sb.from('sessions').insert({
-          name,
-          player_ids: newSessionPlayers,
-          rules: newSessionRules,
-          ended: false,
-        }).select().single();
-        if (error) throw error;
-        activeSession = data;
-        allRounds = [];
-        localStorage.setItem('tcg2_active_session', data.id);
-        allSessions.unshift(data);
-        closeModal('modal-new-session');
-        nav('game');
-      } catch (err) {
-        showToast('Fel: ' + err.message);
-      } finally {
-        btn.textContent = 'Starta session'; btn.disabled = false;
-      }
-    }
+        async function startSession() {
+            if (newSessionPlayers.length < 2) { showToast('Välj minst 2 spelare'); return; }
+            const btn = document.querySelector('#modal-new-session .btn-success');
+            btn.textContent = 'Sparar...'; btn.disabled = true;
+            try {
+                const name = document.getElementById('ns-name').value.trim() || `Session ${allSessions.length + 1}`;
+                const { data, error } = await sb.from('sessions').insert({
+                    name,
+                    player_ids: newSessionPlayers,
+                    rules: newSessionRules,
+                    ended: false,
+                }).select().single();
+                if (error) throw error;
+                activeSession = data;
+                allRounds = [];
+                localStorage.setItem('tcg2_active_session', data.id);
+                allSessions.unshift(data);
+                closeModal('modal-new-session');
+                nav('game');
+            } catch (err) {
+                showToast('Fel: ' + err.message);
+            } finally {
+                btn.textContent = 'Starta session'; btn.disabled = false;
+            }
+        }
 
-    // ============================================================
-    // GAME PAGE
-    // ============================================================
-    function renderGame() {
-      const noMsg = document.getElementById('no-session-msg');
-      const content = document.getElementById('game-content');
-      if (!activeSession) {
-        noMsg.style.display = 'block';
-        content.style.display = 'none';
-        document.getElementById('game-session-label').textContent = 'Ingen aktiv session';
-        return;
-      }
-      noMsg.style.display = 'none';
-      content.style.display = 'block';
-      document.getElementById('game-session-label').textContent = activeSession.name;
+        // ============================================================
+        // GAME PAGE
+        // ============================================================
+        function renderGame() {
+            const noMsg = document.getElementById('no-session-msg');
+            const content = document.getElementById('game-content');
+            if (!activeSession) {
+                noMsg.style.display = 'block';
+                content.style.display = 'none';
+                document.getElementById('game-session-label').textContent = 'Ingen aktiv session';
+                return;
+            }
+            noMsg.style.display = 'none';
+            content.style.display = 'block';
+            document.getElementById('game-session-label').textContent = activeSession.name;
 
-      // Scoreboard
-      const pids = activeSession.player_ids || [];
-      const playerScores = pids.map(pid => ({
-        player: getPlayer(pid),
-        total: getPlayer(pid)?.total_pts || 0,
-      })).filter(x => x.player).sort((a, b) => a.total - b.total);
+            // Scoreboard
+            const pids = activeSession.player_ids || [];
+            const playerScores = pids.map(pid => ({
+                player: getPlayer(pid),
+                total: getPlayer(pid)?.total_pts || 0,
+            })).filter(x => x.player).sort((a, b) => a.total - b.total);
 
-      const sb2 = document.getElementById('game-scoreboard');
-      sb2.innerHTML = `<div class="card-title">Ställning</div>` + playerScores.map((ps, i) => {
-        const p = ps.player;
-        const c = colorFor(p);
-        const medal = i === 0 ? ' 🥇' : i === playerScores.length - 1 ? ' 💀' : '';
-        return `<div class="lb-row">
+            const sb2 = document.getElementById('game-scoreboard');
+            sb2.innerHTML = `<div class="card-title">Ställning</div>` + playerScores.map((ps, i) => {
+                const p = ps.player;
+                const c = colorFor(p);
+                const medal = i === 0 ? ' 🥇' : i === playerScores.length - 1 ? ' 💀' : '';
+                return `<div class="lb-row">
       <div class="lb-rank" style="color:${c.hex}">${i + 1}</div>
       ${avatarEl(p, 36)}
       <div style="flex:1;margin-left:8px">
@@ -1430,24 +1432,24 @@
       </div>
       <div style="font-size:22px;font-weight:700;color:${c.hex}">${ps.total}p</div>
     </div>`;
-      }).join('');
+            }).join('');
 
-      // Rounds list
-      const rl = document.getElementById('game-rounds-list');
-      if (allRounds.length === 0) {
-        rl.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">Inga rundor loggade ännu</div>';
-        return;
-      }
-      rl.innerHTML = [...allRounds].reverse().map(r => {
-        const scores = pids.map(pid => {
-          const p = getPlayer(pid);
-          const entry = r.player_results[pid];
-          if (!p || !entry) return '';
-          const c = colorFor(p);
-          return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p (${entry.card_count} kort)</span>`;
-        }).filter(Boolean).join(' · ');
+            // Rounds list
+            const rl = document.getElementById('game-rounds-list');
+            if (allRounds.length === 0) {
+                rl.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">Inga rundor loggade ännu</div>';
+                return;
+            }
+            rl.innerHTML = [...allRounds].reverse().map(r => {
+                const scores = pids.map(pid => {
+                    const p = getPlayer(pid);
+                    const entry = r.player_results[pid];
+                    if (!p || !entry) return '';
+                    const c = colorFor(p);
+                    return `<span style="color:${c.hex};font-size:12px">${p.name}: ${entry.round_pts}p (${entry.card_count} kort)</span>`;
+                }).filter(Boolean).join(' · ');
 
-        return `<div class="round-card">
+                return `<div class="round-card">
       <div class="round-header">
         <div style="font-weight:600">Runda ${r.round_number}</div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -1457,86 +1459,86 @@
       </div>
       <div>${scores}</div>
     </div>`;
-      }).join('');
-    }
+            }).join('');
+        }
 
-    async function deleteRound(roundId) {
-      if (!confirm('Ta bort denna runda? Spelarnas poäng och klunkar justeras tillbaka.')) return;
+        async function deleteRound(roundId) {
+            if (!confirm('Ta bort denna runda? Spelarnas poäng och klunkar justeras tillbaka.')) return;
 
-      const round = allRounds.find(r => r.id === roundId);
-      if (!round || !activeSession) return;
+            const round = allRounds.find(r => r.id === roundId);
+            if (!round || !activeSession) return;
 
-      // Revert player stats for this round
-      const pids = activeSession.player_ids || [];
-      for (const pid of pids) {
-        const entry = round.player_results[pid];
-        if (!entry) continue;
-        const p = getPlayer(pid);
-        if (!p) continue;
-        const newAllRoundPts = (p.all_round_pts || []).slice(0, -1); // remove last entry
-        const newTotalRounds = Math.max(0, (p.total_rounds || 1) - 1);
-        const newTotalPts = (p.total_pts || 0) - (entry.round_pts || 0);
-        const newDrinkSips = Math.max(0, (p.total_drink_sips || 0) - (entry.drink_sips || 0));
-        const newGiveSips = Math.max(0, (p.total_give_sips || 0) - (entry.give_sips || 0));
-        const newAvg = newAllRoundPts.length > 0
-          ? newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length : 0;
+            // Revert player stats for this round
+            const pids = activeSession.player_ids || [];
+            for (const pid of pids) {
+                const entry = round.player_results[pid];
+                if (!entry) continue;
+                const p = getPlayer(pid);
+                if (!p) continue;
+                const newAllRoundPts = (p.all_round_pts || []).slice(0, -1); // remove last entry
+                const newTotalRounds = Math.max(0, (p.total_rounds || 1) - 1);
+                const newTotalPts = (p.total_pts || 0) - (entry.round_pts || 0);
+                const newDrinkSips = Math.max(0, (p.total_drink_sips || 0) - (entry.drink_sips || 0));
+                const newGiveSips = Math.max(0, (p.total_give_sips || 0) - (entry.give_sips || 0));
+                const newAvg = newAllRoundPts.length > 0
+                    ? newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length : 0;
 
-        await sb.from('players').update({
-          total_pts: newTotalPts,
-          total_rounds: newTotalRounds,
-          total_drink_sips: newDrinkSips,
-          total_give_sips: newGiveSips,
-          avg_pts: newAvg,
-          all_round_pts: newAllRoundPts,
-        }).eq('id', pid);
-      }
+                await sb.from('players').update({
+                    total_pts: newTotalPts,
+                    total_rounds: newTotalRounds,
+                    total_drink_sips: newDrinkSips,
+                    total_give_sips: newGiveSips,
+                    avg_pts: newAvg,
+                    all_round_pts: newAllRoundPts,
+                }).eq('id', pid);
+            }
 
-      // Delete round from DB
-      await sb.from('rounds').delete().eq('id', roundId);
+            // Delete round from DB
+            await sb.from('rounds').delete().eq('id', roundId);
 
-      // Reload
-      await loadPlayers();
-      await loadRoundsForSession(activeSession.id);
-      renderGame();
-      showToast('Runda borttagen');
-    }
+            // Reload
+            await loadPlayers();
+            await loadRoundsForSession(activeSession.id);
+            renderGame();
+            showToast('Runda borttagen');
+        }
 
-    async function endSession() {
-      if (!activeSession) return;
-      if (!confirm('Avsluta sessionen?')) return;
-      await sb.from('sessions').update({ ended: true, ended_at: new Date().toISOString() }).eq('id', activeSession.id);
-      activeSession = null;
-      allRounds = [];
-      localStorage.removeItem('tcg2_active_session');
-      await loadSessions();
-      renderGame();
-      showToast('Session avslutad!');
-    }
+        async function endSession() {
+            if (!activeSession) return;
+            if (!confirm('Avsluta sessionen?')) return;
+            await sb.from('sessions').update({ ended: true, ended_at: new Date().toISOString() }).eq('id', activeSession.id);
+            activeSession = null;
+            allRounds = [];
+            localStorage.removeItem('tcg2_active_session');
+            await loadSessions();
+            renderGame();
+            showToast('Session avslutad!');
+        }
 
-    // ============================================================
-    // ROUND MODAL
-    // ============================================================
-    function openRoundModal() {
-      if (!activeSession) return;
-      const pids = activeSession.player_ids || [];
+        // ============================================================
+        // ROUND MODAL
+        // ============================================================
+        function openRoundModal() {
+            if (!activeSession) return;
+            const pids = activeSession.player_ids || [];
 
-      roundState = {
-        scores: {}, cardCounts: {},
-        knock: false, knockPlayer: null, knockWin: null,
-        snapout: false, snapoutPlayer: null,
-        ev67: false, ev67Player: null, ev67Type: null,
-        cuck: false, cuckPlayer: null,
-      };
-      pids.forEach(pid => { roundState.scores[pid] = 0; roundState.cardCounts[pid] = 4; }); // default 4 cards
+            roundState = {
+                scores: {}, cardCounts: {},
+                knock: false, knockPlayer: null, knockWin: null,
+                snapout: false, snapoutPlayer: null,
+                ev67: false, ev67Player: null, ev67Type: null,
+                cuck: false, cuckPlayer: null,
+            };
+            pids.forEach(pid => { roundState.scores[pid] = 0; roundState.cardCounts[pid] = 4; }); // default 4 cards
 
-      const roundNum = allRounds.length + 1;
-      document.getElementById('round-modal-title').textContent = `Runda ${roundNum}`;
+            const roundNum = allRounds.length + 1;
+            document.getElementById('round-modal-title').textContent = `Runda ${roundNum}`;
 
-      // Score inputs
-      document.getElementById('round-score-inputs').innerHTML = pids.map(pid => {
-        const p = getPlayer(pid);
-        const c = colorFor(p);
-        return `<div class="score-row">
+            // Score inputs
+            document.getElementById('round-score-inputs').innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                const c = colorFor(p);
+                return `<div class="score-row">
       ${avatarEl(p, 36)}
       <div style="flex:1;margin-left:8px;font-weight:600">${p.name}</div>
       <div class="score-controls">
@@ -1545,13 +1547,13 @@
         <button class="stepper-btn" onclick="adjustScore('${pid}',1)">+</button>
       </div>
     </div>`;
-      }).join('');
+            }).join('');
 
-      // Card count inputs
-      document.getElementById('round-card-count-inputs').innerHTML = pids.map(pid => {
-        const p = getPlayer(pid);
-        const c = colorFor(p);
-        return `<div class="score-row">
+            // Card count inputs
+            document.getElementById('round-card-count-inputs').innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                const c = colorFor(p);
+                return `<div class="score-row">
       ${avatarEl(p, 36)}
       <div style="flex:1;margin-left:8px;font-weight:600">${p.name}</div>
       <div class="score-controls">
@@ -1560,168 +1562,168 @@
         <button class="stepper-btn" onclick="adjustCards('${pid}',1)">+</button>
       </div>
     </div>`;
-      }).join('');
+            }).join('');
 
-      // Reset toggles
-      ['knock', 'snapout', '67', 'cuck'].forEach(ev => {
-        const el = document.getElementById('ev-' + ev);
-        if (el) el.classList.remove('on');
-        const det = document.getElementById('ev-' + ev + '-detail');
-        if (det) det.style.display = 'none';
-      });
+            // Reset toggles
+            ['knock', 'snapout', '67', 'cuck'].forEach(ev => {
+                const el = document.getElementById('ev-' + ev);
+                if (el) el.classList.remove('on');
+                const det = document.getElementById('ev-' + ev + '-detail');
+                if (det) det.style.display = 'none';
+            });
 
-      const cuckRow = document.getElementById('cuck-toggle-row');
-      if (cuckRow) cuckRow.style.display = (activeSession.rules?.cuck) ? 'flex' : 'none';
+            const cuckRow = document.getElementById('cuck-toggle-row');
+            if (cuckRow) cuckRow.style.display = (activeSession.rules?.cuck) ? 'flex' : 'none';
 
-      buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
-      buildChips(pids, 'ev-snapout-chips', 'setSnapoutPlayer');
-      buildChips(pids, 'ev-67-chips', 'set67Player');
-      buildChips(pids, 'ev-cuck-chips', 'setCuckPlayer');
+            buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
+            buildChips(pids, 'ev-snapout-chips', 'setSnapoutPlayer');
+            buildChips(pids, 'ev-67-chips', 'set67Player');
+            buildChips(pids, 'ev-cuck-chips', 'setCuckPlayer');
 
-      ['knock-win-yes', 'knock-win-no', 'chip-hard', 'chip-soft'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.remove('selected');
-      });
+            ['knock-win-yes', 'knock-win-no', 'chip-hard', 'chip-soft'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('selected');
+            });
 
-      openModal('modal-round');
-    }
-
-    function adjustScore(pid, delta) {
-      roundState.scores[pid] = (roundState.scores[pid] || 0) + delta;
-      const val = roundState.scores[pid];
-      const el = document.getElementById('sv-' + pid);
-      if (el) {
-        el.textContent = val;
-        el.style.color = val < 0 ? 'var(--green)' : val === 0 ? 'var(--text2)' : colorFor(getPlayer(pid)).hex;
-      }
-    }
-
-    function adjustCards(pid, delta) {
-      roundState.cardCounts[pid] = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
-      const el = document.getElementById('cc-' + pid);
-      if (el) el.textContent = roundState.cardCounts[pid];
-    }
-
-    function toggleEvent(ev) {
-      const key = ev === '67' ? 'ev67' : ev;
-      roundState[key] = !roundState[key];
-      document.getElementById('ev-' + ev).classList.toggle('on', roundState[key]);
-      const det = document.getElementById('ev-' + ev + '-detail');
-      if (det) det.style.display = roundState[key] ? 'block' : 'none';
-    }
-
-    function setKnockPlayer(pid) { roundState.knockPlayer = pid; selectChip('ev-knock-chips', pid); }
-    function setKnockWin(val) {
-      roundState.knockWin = val;
-      document.getElementById('knock-win-yes').classList.toggle('selected', val);
-      document.getElementById('knock-win-no').classList.toggle('selected', !val);
-    }
-    function setSnapoutPlayer(pid) { roundState.snapoutPlayer = pid; selectChip('ev-snapout-chips', pid); }
-    function set67Player(pid) { roundState.ev67Player = pid; selectChip('ev-67-chips', pid); }
-    function set67Type(type) {
-      roundState.ev67Type = type;
-      document.getElementById('chip-hard').classList.toggle('selected', type === 'hard');
-      document.getElementById('chip-soft').classList.toggle('selected', type === 'soft');
-    }
-    function setCuckPlayer(pid) { roundState.cuckPlayer = pid; selectChip('ev-cuck-chips', pid); }
-
-    async function saveRound() {
-      if (!activeSession) return;
-
-      if (roundState.knock && !roundState.knockPlayer) { showToast('Välj vem som knackade'); return; }
-      if (roundState.knock && roundState.knockWin === null) { showToast('Vann knackningen?'); return; }
-      if (roundState.snapout && !roundState.snapoutPlayer) { showToast('Välj snap-out-spelare'); return; }
-      if (roundState.ev67 && !roundState.ev67Player) { showToast('Välj 6/7-spelare'); return; }
-      if (roundState.ev67 && !roundState.ev67Type) { showToast('Välj Hard eller Soft 6/7'); return; }
-      if (roundState.cuck && !roundState.cuckPlayer) { showToast('Välj cuck-spelare'); return; }
-
-      const btn = document.getElementById('save-round-btn');
-      btn.textContent = 'Sparar...'; btn.disabled = true;
-
-      try {
-        const events = {
-          knock: roundState.knock, knockPlayer: roundState.knockPlayer, knockWin: roundState.knockWin,
-          snapout: roundState.snapout, snapoutPlayer: roundState.snapoutPlayer,
-          ev67: roundState.ev67, ev67Player: roundState.ev67Player, ev67Type: roundState.ev67Type,
-          cuck: roundState.cuck, cuckPlayer: roundState.cuckPlayer,
-        };
-
-        const computed = computeRound(activeSession, roundState.scores, roundState.cardCounts, events);
-        const pids = activeSession.player_ids || [];
-
-        // Build player_results for DB
-        const playerResults = {};
-        pids.forEach(pid => {
-          playerResults[pid] = {
-            round_pts: computed[pid].roundPts,
-            card_count: computed[pid].cardCount,
-            total_before: computed[pid].totalBefore,
-            total_after: computed[pid].totalAfter,
-            drink_sips: computed[pid].drinkSips,
-            give_sips: computed[pid].giveSips,
-            events: computed[pid].events,
-          };
-        });
-
-        const roundNum = allRounds.length + 1;
-        const { error: roundErr } = await sb.from('rounds').insert({
-          session_id: activeSession.id,
-          player_results: playerResults,
-          events,
-          round_number: roundNum,
-        });
-        if (roundErr) throw roundErr;
-
-        // Update player stats
-        for (const pid of pids) {
-          const p = getPlayer(pid);
-          if (!p) continue;
-          const res = computed[pid];
-          const newAllRoundPts = [...(p.all_round_pts || []), res.roundPts];
-          const newAvg = newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length;
-          const { error: pErr } = await sb.from('players').update({
-            total_pts: res.totalAfter,
-            total_rounds: (p.total_rounds || 0) + 1,
-            total_drink_sips: (p.total_drink_sips || 0) + res.drinkSips,
-            total_give_sips: (p.total_give_sips || 0) + res.giveSips,
-            all_round_pts: newAllRoundPts,
-            avg_pts: newAvg,
-          }).eq('id', pid);
-          if (pErr) throw pErr;
+            openModal('modal-round');
         }
 
-        await loadPlayers();
-        await loadRoundsForSession(activeSession.id);
-        closeModal('modal-round');
-        showRoundResult(computed, pids);
-        renderGame();
-      } catch (err) {
-        showToast('Fel: ' + err.message);
-      } finally {
-        btn.textContent = 'Beräkna & Spara'; btn.disabled = false;
-      }
-    }
+        function adjustScore(pid, delta) {
+            roundState.scores[pid] = (roundState.scores[pid] || 0) + delta;
+            const val = roundState.scores[pid];
+            const el = document.getElementById('sv-' + pid);
+            if (el) {
+                el.textContent = val;
+                el.style.color = val < 0 ? 'var(--green)' : val === 0 ? 'var(--text2)' : colorFor(getPlayer(pid)).hex;
+            }
+        }
 
-    function showRoundResult(computed, pids) {
-      const html = pids.map(pid => {
-        const p = getPlayer(pid);
-        if (!p) return '';
-        const res = computed[pid];
-        const c = colorFor(p);
-        const net = res.giveSips - res.drinkSips;
-        const netLabel = net >= 0
-          ? `<span style="color:var(--green);font-weight:700">Ger ${net} klunkar</span>`
-          : `<span style="color:var(--accent);font-weight:700">Dricker ${Math.abs(net)} klunkar</span>`;
+        function adjustCards(pid, delta) {
+            roundState.cardCounts[pid] = Math.max(0, (roundState.cardCounts[pid] || 0) + delta);
+            const el = document.getElementById('cc-' + pid);
+            if (el) el.textContent = roundState.cardCounts[pid];
+        }
 
-        const evList = res.events.map(ev => {
-          const sipStr = ev.sips > 0
-            ? `<span style="color:var(--green)">+${ev.sips}</span>`
-            : ev.sips < 0 ? `<span style="color:var(--accent)">${ev.sips}</span>` : '';
-          return `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:2px 0">
+        function toggleEvent(ev) {
+            const key = ev === '67' ? 'ev67' : ev;
+            roundState[key] = !roundState[key];
+            document.getElementById('ev-' + ev).classList.toggle('on', roundState[key]);
+            const det = document.getElementById('ev-' + ev + '-detail');
+            if (det) det.style.display = roundState[key] ? 'block' : 'none';
+        }
+
+        function setKnockPlayer(pid) { roundState.knockPlayer = pid; selectChip('ev-knock-chips', pid); }
+        function setKnockWin(val) {
+            roundState.knockWin = val;
+            document.getElementById('knock-win-yes').classList.toggle('selected', val);
+            document.getElementById('knock-win-no').classList.toggle('selected', !val);
+        }
+        function setSnapoutPlayer(pid) { roundState.snapoutPlayer = pid; selectChip('ev-snapout-chips', pid); }
+        function set67Player(pid) { roundState.ev67Player = pid; selectChip('ev-67-chips', pid); }
+        function set67Type(type) {
+            roundState.ev67Type = type;
+            document.getElementById('chip-hard').classList.toggle('selected', type === 'hard');
+            document.getElementById('chip-soft').classList.toggle('selected', type === 'soft');
+        }
+        function setCuckPlayer(pid) { roundState.cuckPlayer = pid; selectChip('ev-cuck-chips', pid); }
+
+        async function saveRound() {
+            if (!activeSession) return;
+
+            if (roundState.knock && !roundState.knockPlayer) { showToast('Välj vem som knackade'); return; }
+            if (roundState.knock && roundState.knockWin === null) { showToast('Vann knackningen?'); return; }
+            if (roundState.snapout && !roundState.snapoutPlayer) { showToast('Välj snap-out-spelare'); return; }
+            if (roundState.ev67 && !roundState.ev67Player) { showToast('Välj 6/7-spelare'); return; }
+            if (roundState.ev67 && !roundState.ev67Type) { showToast('Välj Hard eller Soft 6/7'); return; }
+            if (roundState.cuck && !roundState.cuckPlayer) { showToast('Välj cuck-spelare'); return; }
+
+            const btn = document.getElementById('save-round-btn');
+            btn.textContent = 'Sparar...'; btn.disabled = true;
+
+            try {
+                const events = {
+                    knock: roundState.knock, knockPlayer: roundState.knockPlayer, knockWin: roundState.knockWin,
+                    snapout: roundState.snapout, snapoutPlayer: roundState.snapoutPlayer,
+                    ev67: roundState.ev67, ev67Player: roundState.ev67Player, ev67Type: roundState.ev67Type,
+                    cuck: roundState.cuck, cuckPlayer: roundState.cuckPlayer,
+                };
+
+                const computed = computeRound(activeSession, roundState.scores, roundState.cardCounts, events);
+                const pids = activeSession.player_ids || [];
+
+                // Build player_results for DB
+                const playerResults = {};
+                pids.forEach(pid => {
+                    playerResults[pid] = {
+                        round_pts: computed[pid].roundPts,
+                        card_count: computed[pid].cardCount,
+                        total_before: computed[pid].totalBefore,
+                        total_after: computed[pid].totalAfter,
+                        drink_sips: computed[pid].drinkSips,
+                        give_sips: computed[pid].giveSips,
+                        events: computed[pid].events,
+                    };
+                });
+
+                const roundNum = allRounds.length + 1;
+                const { error: roundErr } = await sb.from('rounds').insert({
+                    session_id: activeSession.id,
+                    player_results: playerResults,
+                    events,
+                    round_number: roundNum,
+                });
+                if (roundErr) throw roundErr;
+
+                // Update player stats
+                for (const pid of pids) {
+                    const p = getPlayer(pid);
+                    if (!p) continue;
+                    const res = computed[pid];
+                    const newAllRoundPts = [...(p.all_round_pts || []), res.roundPts];
+                    const newAvg = newAllRoundPts.reduce((a, b) => a + b, 0) / newAllRoundPts.length;
+                    const { error: pErr } = await sb.from('players').update({
+                        total_pts: res.totalAfter,
+                        total_rounds: (p.total_rounds || 0) + 1,
+                        total_drink_sips: (p.total_drink_sips || 0) + res.drinkSips,
+                        total_give_sips: (p.total_give_sips || 0) + res.giveSips,
+                        all_round_pts: newAllRoundPts,
+                        avg_pts: newAvg,
+                    }).eq('id', pid);
+                    if (pErr) throw pErr;
+                }
+
+                await loadPlayers();
+                await loadRoundsForSession(activeSession.id);
+                closeModal('modal-round');
+                showRoundResult(computed, pids);
+                renderGame();
+            } catch (err) {
+                showToast('Fel: ' + err.message);
+            } finally {
+                btn.textContent = 'Beräkna & Spara'; btn.disabled = false;
+            }
+        }
+
+        function showRoundResult(computed, pids) {
+            const html = pids.map(pid => {
+                const p = getPlayer(pid);
+                if (!p) return '';
+                const res = computed[pid];
+                const c = colorFor(p);
+                const net = res.giveSips - res.drinkSips;
+                const netLabel = net >= 0
+                    ? `<span style="color:var(--green);font-weight:700">Ger ${net} klunkar</span>`
+                    : `<span style="color:var(--accent);font-weight:700">Dricker ${Math.abs(net)} klunkar</span>`;
+
+                const evList = res.events.map(ev => {
+                    const sipStr = ev.sips > 0
+                        ? `<span style="color:var(--green)">+${ev.sips}</span>`
+                        : ev.sips < 0 ? `<span style="color:var(--accent)">${ev.sips}</span>` : '';
+                    return `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:2px 0">
         <span>${ev.desc}</span>${sipStr}</div>`;
-        }).join('');
+                }).join('');
 
-        return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                return `<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         ${avatarEl(p, 36)}
         <div style="flex:1">
@@ -1732,24 +1734,24 @@
       </div>
       <div style="background:var(--surface2);border-radius:8px;padding:8px">${evList}</div>
     </div>`;
-      }).join('');
+            }).join('');
 
-      document.getElementById('result-content').innerHTML = html;
-      openModal('modal-result');
-    }
+            document.getElementById('result-content').innerHTML = html;
+            openModal('modal-result');
+        }
 
-    // ============================================================
-    // PLAYERS
-    // ============================================================
-    function renderPlayers() {
-      const list = document.getElementById('players-list');
-      if (allPlayers.length === 0) {
-        list.innerHTML = `<div class="empty"><div class="empty-icon">👤</div><div>Inga spelare än</div></div>`;
-        return;
-      }
-      list.innerHTML = allPlayers.map(p => {
-        const c = colorFor(p);
-        return `<div class="player-item">
+        // ============================================================
+        // PLAYERS
+        // ============================================================
+        function renderPlayers() {
+            const list = document.getElementById('players-list');
+            if (allPlayers.length === 0) {
+                list.innerHTML = `<div class="empty"><div class="empty-icon">👤</div><div>Inga spelare än</div></div>`;
+                return;
+            }
+            list.innerHTML = allPlayers.map(p => {
+                const c = colorFor(p);
+                return `<div class="player-item">
       ${avatarEl(p)}
       <div class="player-info">
         <div class="player-name">${p.name}</div>
@@ -1759,122 +1761,122 @@
       </div>
       <button class="btn btn-danger btn-sm" onclick="deletePlayer('${p.id}')">Ta bort</button>
     </div>`;
-      }).join('');
-    }
+            }).join('');
+        }
 
-    function openAddPlayer() {
-      document.getElementById('ap-name').value = '';
-      selectedAddColor = 0;
-      const wrap = document.getElementById('ap-colors');
-      wrap.innerHTML = COLORS.map((c, i) => `
+        function openAddPlayer() {
+            document.getElementById('ap-name').value = '';
+            selectedAddColor = 0;
+            const wrap = document.getElementById('ap-colors');
+            wrap.innerHTML = COLORS.map((c, i) => `
     <div class="chip ${i === 0 ? 'selected' : ''}" id="apc-${i}"
       style="${i === 0 ? `border-color:${c.hex};background:${c.dark};color:${c.hex}` : ''}"
       onclick="selectAddColor(${i})">${c.name}</div>
   `).join('');
-      openModal('modal-add-player');
-    }
-
-    function selectAddColor(idx) {
-      selectedAddColor = idx;
-      COLORS.forEach((c, i) => {
-        const el = document.getElementById('apc-' + i);
-        if (i === idx) {
-          el.classList.add('selected');
-          el.style.cssText = `border-color:${c.hex};background:${c.dark};color:${c.hex}`;
-        } else {
-          el.classList.remove('selected');
-          el.style.cssText = '';
+            openModal('modal-add-player');
         }
-      });
-    }
 
-    async function savePlayer() {
-      const name = document.getElementById('ap-name').value.trim();
-      if (!name) { showToast('Ange ett namn'); return; }
-      if (allPlayers.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-        showToast('Namnet används redan'); return;
-      }
-      try {
-        const { error } = await sb.from('players').insert({
-          name, color_idx: selectedAddColor,
-          total_pts: 0, total_rounds: 0,
-          total_drink_sips: 0, total_give_sips: 0,
-          avg_pts: 0, all_round_pts: [],
-        });
-        if (error) throw error;
-        await loadPlayers();
-        closeModal('modal-add-player');
-        renderPlayers();
-        showToast(`${name} tillagd!`);
-      } catch (err) {
-        showToast('Fel: ' + err.message);
-      }
-    }
+        function selectAddColor(idx) {
+            selectedAddColor = idx;
+            COLORS.forEach((c, i) => {
+                const el = document.getElementById('apc-' + i);
+                if (i === idx) {
+                    el.classList.add('selected');
+                    el.style.cssText = `border-color:${c.hex};background:${c.dark};color:${c.hex}`;
+                } else {
+                    el.classList.remove('selected');
+                    el.style.cssText = '';
+                }
+            });
+        }
 
-    async function deletePlayer(id) {
-      const p = getPlayer(id);
-      if (!confirm(`Ta bort ${p?.name}? All statistik försvinner.`)) return;
-      try {
-        const { error } = await sb.from('players').delete().eq('id', id);
-        if (error) throw error;
-        await loadPlayers();
-        renderPlayers();
-        showToast('Spelare borttagen');
-      } catch (err) {
-        showToast('Fel: ' + err.message);
-      }
-    }
+        async function savePlayer() {
+            const name = document.getElementById('ap-name').value.trim();
+            if (!name) { showToast('Ange ett namn'); return; }
+            if (allPlayers.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+                showToast('Namnet används redan'); return;
+            }
+            try {
+                const { error } = await sb.from('players').insert({
+                    name, color_idx: selectedAddColor,
+                    total_pts: 0, total_rounds: 0,
+                    total_drink_sips: 0, total_give_sips: 0,
+                    avg_pts: 0, all_round_pts: [],
+                });
+                if (error) throw error;
+                await loadPlayers();
+                closeModal('modal-add-player');
+                renderPlayers();
+                showToast(`${name} tillagd!`);
+            } catch (err) {
+                showToast('Fel: ' + err.message);
+            }
+        }
 
-    // ============================================================
-    // STATS
-    // ============================================================
-    function renderStats() {
-      const chips = document.getElementById('stats-chips');
-      if (allPlayers.length === 0) {
-        chips.innerHTML = '<div style="color:var(--text2);font-size:13px">Inga spelare än</div>';
-        document.getElementById('stats-content').innerHTML = '';
-        return;
-      }
-      chips.innerHTML = allPlayers.map(p => {
-        const sel = selectedStatsPlayer === p.id;
-        const c = colorFor(p);
-        return `<div class="chip ${sel ? 'selected' : ''}"
+        async function deletePlayer(id) {
+            const p = getPlayer(id);
+            if (!confirm(`Ta bort ${p?.name}? All statistik försvinner.`)) return;
+            try {
+                const { error } = await sb.from('players').delete().eq('id', id);
+                if (error) throw error;
+                await loadPlayers();
+                renderPlayers();
+                showToast('Spelare borttagen');
+            } catch (err) {
+                showToast('Fel: ' + err.message);
+            }
+        }
+
+        // ============================================================
+        // STATS
+        // ============================================================
+        function renderStats() {
+            const chips = document.getElementById('stats-chips');
+            if (allPlayers.length === 0) {
+                chips.innerHTML = '<div style="color:var(--text2);font-size:13px">Inga spelare än</div>';
+                document.getElementById('stats-content').innerHTML = '';
+                return;
+            }
+            chips.innerHTML = allPlayers.map(p => {
+                const sel = selectedStatsPlayer === p.id;
+                const c = colorFor(p);
+                return `<div class="chip ${sel ? 'selected' : ''}"
       style="${sel ? `border-color:${c.hex};background:${c.dark};color:${c.hex}` : ''}"
       onclick="selectStatsPlayer('${p.id}')">${p.name}</div>`;
-      }).join('');
-      if (selectedStatsPlayer) renderPlayerStats(selectedStatsPlayer);
-      else document.getElementById('stats-content').innerHTML =
-        '<div style="color:var(--text2);text-align:center;padding:32px">Välj en spelare</div>';
-    }
+            }).join('');
+            if (selectedStatsPlayer) renderPlayerStats(selectedStatsPlayer);
+            else document.getElementById('stats-content').innerHTML =
+                '<div style="color:var(--text2);text-align:center;padding:32px">Välj en spelare</div>';
+        }
 
-    function selectStatsPlayer(id) { selectedStatsPlayer = id; renderStats(); }
+        function selectStatsPlayer(id) { selectedStatsPlayer = id; renderStats(); }
 
-    function renderPlayerStats(pid) {
-      const p = getPlayer(pid);
-      if (!p) return;
-      const c = colorFor(p);
-      const rounds = p.all_round_pts || [];
-      const minPts = rounds.length ? Math.min(...rounds) : 0;
-      const maxPts = rounds.length ? Math.max(...rounds) : 0;
+        function renderPlayerStats(pid) {
+            const p = getPlayer(pid);
+            if (!p) return;
+            const c = colorFor(p);
+            const rounds = p.all_round_pts || [];
+            const minPts = rounds.length ? Math.min(...rounds) : 0;
+            const maxPts = rounds.length ? Math.max(...rounds) : 0;
 
-      // Count wins/losses from sessions
-      let wins = 0, losses = 0;
-      allSessions.forEach(sess => {
-        if (!(sess.player_ids || []).includes(pid)) return;
-        // We don't have all rounds in memory (only active session's), so skip for history sessions
-      });
-      // Use active session rounds for counts
-      allRounds.forEach(r => {
-        if (!r.player_results[pid]) return;
-        const allPts = (activeSession?.player_ids || []).map(id => r.player_results[id]?.round_pts || 0);
-        const myPts = r.player_results[pid].round_pts;
-        if (myPts === Math.min(...allPts)) wins++;
-        if (myPts === Math.max(...allPts) && allPts.filter(x => x === myPts).length === 1) losses++;
-      });
+            // Count wins/losses from sessions
+            let wins = 0, losses = 0;
+            allSessions.forEach(sess => {
+                if (!(sess.player_ids || []).includes(pid)) return;
+                // We don't have all rounds in memory (only active session's), so skip for history sessions
+            });
+            // Use active session rounds for counts
+            allRounds.forEach(r => {
+                if (!r.player_results[pid]) return;
+                const allPts = (activeSession?.player_ids || []).map(id => r.player_results[id]?.round_pts || 0);
+                const myPts = r.player_results[pid].round_pts;
+                if (myPts === Math.min(...allPts)) wins++;
+                if (myPts === Math.max(...allPts) && allPts.filter(x => x === myPts).length === 1) losses++;
+            });
 
-      const sparkData = rounds.slice(-20);
+            const sparkData = rounds.slice(-20);
 
-      document.getElementById('stats-content').innerHTML = `
+            document.getElementById('stats-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       ${avatarEl(p, 52)}
       <div>
@@ -1899,101 +1901,101 @@
     </div>` : ''}
   `;
 
-      if (sparkData.length > 1) drawSparkline('spark-canvas', sparkData, c.hex);
-    }
+            if (sparkData.length > 1) drawSparkline('spark-canvas', sparkData, c.hex);
+        }
 
-    function drawSparkline(canvasId, data, color) {
-      requestAnimationFrame(() => {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-        canvas.width = canvas.parentElement.offsetWidth - 32;
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width, h = canvas.height, pad = 24;
-        const minV = Math.min(...data), maxV = Math.max(...data);
-        const range = maxV - minV || 1;
-        ctx.clearRect(0, 0, w, h);
+        function drawSparkline(canvasId, data, color) {
+            requestAnimationFrame(() => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
+                canvas.width = canvas.parentElement.offsetWidth - 32;
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width, h = canvas.height, pad = 24;
+                const minV = Math.min(...data), maxV = Math.max(...data);
+                const range = maxV - minV || 1;
+                ctx.clearRect(0, 0, w, h);
 
-        const pts = data.map((v, i) => ({
-          x: pad + i * (w - pad * 2) / (data.length - 1),
-          y: pad + (1 - (v - minV) / range) * (h - pad * 2),
-        }));
+                const pts = data.map((v, i) => ({
+                    x: pad + i * (w - pad * 2) / (data.length - 1),
+                    y: pad + (1 - (v - minV) / range) * (h - pad * 2),
+                }));
 
-        // Gradient fill
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, color + '44');
-        grad.addColorStop(1, color + '00');
-        ctx.beginPath();
-        pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-        ctx.lineTo(pts[pts.length - 1].x, h);
-        ctx.lineTo(pts[0].x, h);
-        ctx.closePath();
-        ctx.fillStyle = grad; ctx.fill();
+                // Gradient fill
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, color + '44');
+                grad.addColorStop(1, color + '00');
+                ctx.beginPath();
+                pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.lineTo(pts[pts.length - 1].x, h);
+                ctx.lineTo(pts[0].x, h);
+                ctx.closePath();
+                ctx.fillStyle = grad; ctx.fill();
 
-        // Line
-        ctx.beginPath();
-        pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-        ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-        ctx.lineJoin = 'round'; ctx.stroke();
+                // Line
+                ctx.beginPath();
+                pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+                ctx.lineJoin = 'round'; ctx.stroke();
 
-        // Dots + labels
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = '10px -apple-system';
-        ctx.textAlign = 'right';
-        ctx.fillText(maxV + 'p', pad - 4, pad + 4);
-        ctx.fillText(minV + 'p', pad - 4, h - pad + 4);
-        pts.forEach(p => {
-          ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-          ctx.fillStyle = color; ctx.fill();
-        });
-      });
-    }
+                // Dots + labels
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.font = '10px -apple-system';
+                ctx.textAlign = 'right';
+                ctx.fillText(maxV + 'p', pad - 4, pad + 4);
+                ctx.fillText(minV + 'p', pad - 4, h - pad + 4);
+                pts.forEach(p => {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+                    ctx.fillStyle = color; ctx.fill();
+                });
+            });
+        }
 
-    // ============================================================
-    // HISTORY
-    // ============================================================
-    function renderHistory() {
-      const list = document.getElementById('history-list');
-      if (allSessions.length === 0) {
-        list.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div>Inga sessioner än</div></div>`;
-        return;
-      }
-      list.innerHTML = allSessions.map(sess => {
-        const names = (sess.player_ids || []).map(id => getPlayer(id)?.name || '?').join(', ');
-        const tag = !sess.ended ? ' <span style="font-size:11px;background:rgba(39,174,96,0.2);color:var(--green);padding:2px 8px;border-radius:10px">Aktiv</span>' : '';
-        return `<div class="session-item" onclick="showSessionDetail('${sess.id}')">
+        // ============================================================
+        // HISTORY
+        // ============================================================
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            if (allSessions.length === 0) {
+                list.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><div>Inga sessioner än</div></div>`;
+                return;
+            }
+            list.innerHTML = allSessions.map(sess => {
+                const names = (sess.player_ids || []).map(id => getPlayer(id)?.name || '?').join(', ');
+                const tag = !sess.ended ? ' <span style="font-size:11px;background:rgba(39,174,96,0.2);color:var(--green);padding:2px 8px;border-radius:10px">Aktiv</span>' : '';
+                return `<div class="session-item" onclick="showSessionDetail('${sess.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-weight:600">${sess.name}${tag}</div>
         <div style="font-size:12px;color:var(--text2)">${fmtDate(sess.created_at)}</div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-top:4px">${names}</div>
     </div>`;
-      }).join('');
-    }
+            }).join('');
+        }
 
-    let currentDetailSessionId = null;
+        let currentDetailSessionId = null;
 
-    async function showSessionDetail(id) {
-      currentDetailSessionId = id;
-      const sess = allSessions.find(s => s.id === id);
-      if (!sess) return;
-      document.getElementById('sd-title').textContent = sess.name;
+        async function showSessionDetail(id) {
+            currentDetailSessionId = id;
+            const sess = allSessions.find(s => s.id === id);
+            if (!sess) return;
+            document.getElementById('sd-title').textContent = sess.name;
 
-      // Load rounds for this session
-      const { data: rounds } = await sb.from('rounds').select('*')
-        .eq('session_id', id).order('round_number');
+            // Load rounds for this session
+            const { data: rounds } = await sb.from('rounds').select('*')
+                .eq('session_id', id).order('round_number');
 
-      const pids = sess.player_ids || [];
-      const standings = pids.map(pid => {
-        const p = getPlayer(pid);
-        const sessionPts = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.round_pts || 0), 0);
-        const sessionDrink = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
-        return { player: p, pts: sessionPts, drink: sessionDrink };
-      }).filter(x => x.player).sort((a, b) => a.pts - b.pts);
+            const pids = sess.player_ids || [];
+            const standings = pids.map(pid => {
+                const p = getPlayer(pid);
+                const sessionPts = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.round_pts || 0), 0);
+                const sessionDrink = (rounds || []).reduce((a, r) => a + (r.player_results[pid]?.drink_sips || 0), 0);
+                return { player: p, pts: sessionPts, drink: sessionDrink };
+            }).filter(x => x.player).sort((a, b) => a.pts - b.pts);
 
-      const rows = standings.map((s, i) => {
-        const p = s.player;
-        const c = colorFor(p);
-        return `<div class="lb-row">
+            const rows = standings.map((s, i) => {
+                const p = s.player;
+                const c = colorFor(p);
+                return `<div class="lb-row">
       <div class="lb-rank">${['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣'][i] || i + 1}</div>
       ${avatarEl(p, 32)}
       <div style="flex:1;margin-left:8px">
@@ -2002,9 +2004,9 @@
       </div>
       <div style="font-weight:700;color:${c.hex}">${s.pts}p</div>
     </div>`;
-      }).join('');
+            }).join('');
 
-      document.getElementById('sd-content').innerHTML = `
+            document.getElementById('sd-content').innerHTML = `
     <div style="font-size:13px;color:var(--text2)">
       ${(rounds || []).length} rundor · ${fmtDate(sess.created_at)}
       · Hardcore: ${sess.rules?.hardcore ? 'Ja' : 'Nej'} · Cuck: ${sess.rules?.cuck ? 'Ja' : 'Nej'}
@@ -2013,30 +2015,30 @@
     ${rows}
   `;
 
-      document.getElementById('sd-delete-btn').onclick = () => deleteSession(id);
-      openModal('modal-session-detail');
-    }
+            document.getElementById('sd-delete-btn').onclick = () => deleteSession(id);
+            openModal('modal-session-detail');
+        }
 
-    async function deleteSession(id) {
-      if (!confirm('Ta bort sessionen? Rundorna tas bort men spelarstatistik påverkas inte.')) return;
-      const { error } = await sb.from('sessions').delete().eq('id', id);
-      if (error) { showToast('Fel: ' + error.message); return; }
-      if (activeSession?.id === id) {
-        activeSession = null;
-        allRounds = [];
-        localStorage.removeItem('tcg2_active_session');
-      }
-      await loadSessions();
-      closeModal('modal-session-detail');
-      renderHistory();
-      showToast('Session borttagen');
-    }
+        async function deleteSession(id) {
+            if (!confirm('Ta bort sessionen? Rundorna tas bort men spelarstatistik påverkas inte.')) return;
+            const { error } = await sb.from('sessions').delete().eq('id', id);
+            if (error) { showToast('Fel: ' + error.message); return; }
+            if (activeSession?.id === id) {
+                activeSession = null;
+                allRounds = [];
+                localStorage.removeItem('tcg2_active_session');
+            }
+            await loadSessions();
+            closeModal('modal-session-detail');
+            renderHistory();
+            showToast('Session borttagen');
+        }
 
-    // ============================================================
-    // START
-    // ============================================================
-    window.addEventListener('load', init);
-  </script>
+        // ============================================================
+        // START
+        // ============================================================
+        window.addEventListener('load', init);
+    </script>
 </body>
 
 </html>
