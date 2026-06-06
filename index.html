@@ -948,13 +948,40 @@
         // ============================================================
         // MODAL HELPERS
         // ============================================================
-        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function openModal(id) {
+            document.getElementById(id).classList.add('open');
+            // Push history state so mobile back button closes the modal
+            history.pushState({ modal: id }, '');
+        }
         function closeModal(id) {
             document.getElementById(id).classList.remove('open');
-            // If closing password modal without success, reject the promise
             if (id === 'modal-password' && _pwResolve) { _pwResolve(false); _pwResolve = null; }
         }
         function closeModalOverlay(id, e) { if (e && e.target === document.getElementById(id)) closeModal(id); }
+
+        // Handle mobile back button — close the topmost open modal
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.modal) {
+                // State tells us which modal was open — close it
+                const id = e.state.modal;
+                const el = document.getElementById(id);
+                if (el && el.classList.contains('open')) {
+                    el.classList.remove('open');
+                    if (id === 'modal-password' && _pwResolve) { _pwResolve(false); _pwResolve = null; }
+                    if (id === 'modal-round-detail' && _roundDetailFromHistory) {
+                        document.getElementById('modal-session-detail').classList.add('open');
+                        _roundDetailFromHistory = false;
+                    }
+                    return;
+                }
+            }
+            // Fallback: close any open modal
+            const open = document.querySelector('.modal-overlay.open');
+            if (open) {
+                open.classList.remove('open');
+                if (open.id === 'modal-password' && _pwResolve) { _pwResolve(false); _pwResolve = null; }
+            }
+        });
 
         // ============================================================
         // PASSWORD MODAL — own in-app modal, never uses browser prompt()
@@ -2421,14 +2448,19 @@
             return {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':0,'J':10,'Q':10,'K':10,'A':1}[rank] ?? 0;
         }
 
-        // Deduplicate overlapping detections (keep highest confidence)
+        // Deduplicate detections — two stages:
+        // Stage 1: IoU overlap (same card at same position)
+        // Stage 2: class_name uniqueness (a card can only exist once in a deck)
         function deduplicateDetections(detections, iouThreshold = 0.3) {
+            // Sort by confidence descending — always keep the most confident detection
             const sorted = [...detections].sort((a, b) => b.conf - a.conf);
-            const kept = [];
+
+            // Stage 1: IoU — remove spatially overlapping boxes
+            const iouFiltered = [];
             for (const det of sorted) {
                 const [x1,y1,x2,y2] = det.xyxy;
                 let isDup = false;
-                for (const k of kept) {
+                for (const k of iouFiltered) {
                     const [kx1,ky1,kx2,ky2] = k.xyxy;
                     const ix1 = Math.max(x1,kx1), iy1 = Math.max(y1,ky1);
                     const ix2 = Math.min(x2,kx2), iy2 = Math.min(y2,ky2);
@@ -2438,9 +2470,20 @@
                         if (inter / (a1 + a2 - inter) > iouThreshold) { isDup = true; break; }
                     }
                 }
-                if (!isDup) kept.push(det);
+                if (!isDup) iouFiltered.push(det);
             }
-            return kept;
+
+            // Stage 2: class_name uniqueness — a standard deck has exactly one of each card
+            // Keep only the highest-confidence detection per class_name
+            const seenCards = new Set();
+            const final = [];
+            for (const det of iouFiltered) {
+                if (!seenCards.has(det.class_name)) {
+                    seenCards.add(det.class_name);
+                    final.push(det);
+                }
+            }
+            return final;
         }
 
         // Cluster detections into n player zones by x-coordinate
