@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="TCG2">
@@ -72,7 +72,7 @@
             background: linear-gradient(135deg, rgba(224,138,0,0.08), rgba(224,138,0,0.03));
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -1444,7 +1444,6 @@
                 activeSession = data;
                 allRounds = [];
                 localStorage.setItem('tcg2_active_session', data.id);
-                allSessions.unshift(data);
                 closeModal('modal-new-session');
                 nav('game');
             } catch (err) {
@@ -2410,7 +2409,7 @@
         // ============================================================
         // YOLO CARD SCANNER
         // ============================================================
-        const YOLO_API = 'http://212.85.80.51:25565';
+        const YOLO_API = 'https://mandolin-sublevel-manhandle.ngrok-free.dev';
         const YOLO_CONF_THRESHOLD = 0.55;
 
         // Card value rules (TCG2)
@@ -2517,7 +2516,7 @@
             try {
                 // First check server health
                 document.getElementById('scan-loading-msg').textContent = 'Kollar serverstatus...';
-                const healthRes = await fetch(`${YOLO_API}/health`, { signal: AbortSignal.timeout(5000) });
+                const healthRes = await fetch(`${YOLO_API}/health`, { signal: AbortSignal.timeout(5000), headers: { 'ngrok-skip-browser-warning': 'true' } });
                 if (!healthRes.ok) throw new Error('Servern svarar inte');
 
                 // Send image
@@ -2528,6 +2527,7 @@
                 const detectRes = await fetch(`${YOLO_API}/detect`, {
                     method: 'POST',
                     body: formData,
+                    headers: { 'ngrok-skip-browser-warning': 'true' },
                     signal: AbortSignal.timeout(30000),
                 });
                 if (!detectRes.ok) throw new Error(`Server returnerade ${detectRes.status}`);
