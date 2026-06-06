@@ -570,7 +570,12 @@
         </div>
         <div id="game-content" style="display:none">
             <div class="card" id="game-scoreboard"></div>
-            <button class="btn btn-primary mt8" id="log-round-btn" onclick="openRoundModal()" style="display:none">+ Logga runda</button>
+            <div id="creator-actions" style="display:none">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+                    <button class="btn btn-primary" id="log-round-btn" onclick="openRoundModal()">✏️ Logga manuellt</button>
+                    <button class="btn btn-secondary" id="scan-round-btn" onclick="openScanModal()">📷 Skanna kort</button>
+                </div>
+            </div>
             <div id="readonly-badge" style="display:none;text-align:center;padding:10px;font-size:13px;color:var(--text2);margin-top:8px">
                 👁 Läsläge — du kan se men inte redigera denna session
             </div>
@@ -804,6 +809,68 @@
             <div style="display:flex;gap:8px;margin-top:12px">
                 <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-session-detail')">Stäng</button>
                 <button class="btn btn-danger" style="flex:1" id="sd-delete-btn">Ta bort session</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SKANNA KORT -->
+    <div class="modal-overlay" id="modal-scan" onclick="closeModalOverlay('modal-scan',event)">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-title">📷 Skanna kort</div>
+
+            <!-- STEG 1: Ladda upp bild -->
+            <div id="scan-step-1">
+                <div style="font-size:13px;color:var(--text2);margin-bottom:16px">
+                    Lägg alla spelares kort på bordet med ett namnkort bredvid varje hand. Ta ett foto och ladda upp det här.
+                </div>
+                <div id="scan-drop-zone" onclick="document.getElementById('scan-file-input').click()"
+                    style="border:2px dashed var(--border);border-radius:16px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:12px">
+                    <div style="font-size:36px;margin-bottom:8px">📷</div>
+                    <div style="font-weight:600;margin-bottom:4px">Tryck för att välja bild</div>
+                    <div style="font-size:12px;color:var(--text2)">eller ta ett foto med kameran</div>
+                </div>
+                <input type="file" id="scan-file-input" accept="image/*" capture="environment"
+                    style="display:none" onchange="handleScanFile(this)">
+                <div id="scan-preview-wrap" style="display:none;margin-bottom:12px">
+                    <img id="scan-preview-img" style="width:100%;border-radius:12px;max-height:220px;object-fit:cover">
+                    <div style="font-size:12px;color:var(--text2);margin-top:6px" id="scan-file-name"></div>
+                </div>
+                <button class="btn btn-primary" id="scan-detect-btn" onclick="runDetection()" style="display:none">
+                    Analysera bild
+                </button>
+            </div>
+
+            <!-- STEG 2: Tilldela kort till spelare -->
+            <div id="scan-step-2" style="display:none">
+                <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="scan-detection-summary"></div>
+
+                <!-- Otilldelade kort -->
+                <div class="card-title">Detekterade kort — tryck för att tilldela</div>
+                <div id="scan-unassigned-cards" class="chip-wrap" style="margin-bottom:16px;min-height:40px;padding:8px;background:var(--surface2);border-radius:12px;border:1px dashed var(--border)"></div>
+
+                <!-- Per spelare -->
+                <div id="scan-player-zones"></div>
+
+                <div style="display:flex;gap:8px;margin-top:16px">
+                    <button class="btn btn-ghost" style="flex:1" onclick="resetScan()">← Nytt foto</button>
+                    <button class="btn btn-success" style="flex:1" id="scan-confirm-btn" onclick="confirmScanRound()">Logga runda</button>
+                </div>
+            </div>
+
+            <!-- LADDNING -->
+            <div id="scan-loading" style="display:none;text-align:center;padding:32px">
+                <div class="spinner" style="margin:0 auto 16px"></div>
+                <div style="font-weight:600">Analyserar bild...</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px" id="scan-loading-msg">Skickar till YOLO-servern</div>
+            </div>
+
+            <!-- FEL -->
+            <div id="scan-error" style="display:none;text-align:center;padding:24px">
+                <div style="font-size:32px;margin-bottom:8px">⚠️</div>
+                <div style="font-weight:600;margin-bottom:4px" id="scan-error-title">Något gick fel</div>
+                <div style="font-size:13px;color:var(--text2);margin-bottom:16px" id="scan-error-msg"></div>
+                <button class="btn btn-ghost" onclick="resetScan()">Försök igen</button>
             </div>
         </div>
     </div>
@@ -1405,7 +1472,7 @@
             const creator = isSessionCreator(activeSession);
             document.getElementById('game-session-label').textContent = activeSession.name;
             document.getElementById('end-session-btn').style.display = creator ? '' : 'none';
-            document.getElementById('log-round-btn').style.display = creator ? '' : 'none';
+            document.getElementById('creator-actions').style.display = creator ? '' : 'none';
             document.getElementById('readonly-badge').style.display = creator ? 'none' : 'block';
 
             // Scoreboard
@@ -2338,6 +2405,358 @@
             closeModal('modal-session-detail');
             renderHistory();
             showToast('Session och all data borttagen');
+        }
+
+        // ============================================================
+        // YOLO CARD SCANNER
+        // ============================================================
+        const YOLO_API = 'http://212.85.80.51:25565';
+        const YOLO_CONF_THRESHOLD = 0.55;
+
+        // Card value rules (TCG2)
+        function cardValue(className) {
+            if (!className) return 0;
+            if (className === '6H' || className === '7H') return -1;
+            const rank = className[0];
+            if (rank === 'X') return -1; // joker
+            return {'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'T':0,'J':10,'Q':10,'K':10,'A':1}[rank] ?? 0;
+        }
+
+        // Deduplicate overlapping detections (keep highest confidence)
+        function deduplicateDetections(detections, iouThreshold = 0.3) {
+            const sorted = [...detections].sort((a, b) => b.conf - a.conf);
+            const kept = [];
+            for (const det of sorted) {
+                const [x1,y1,x2,y2] = det.xyxy;
+                let isDup = false;
+                for (const k of kept) {
+                    const [kx1,ky1,kx2,ky2] = k.xyxy;
+                    const ix1 = Math.max(x1,kx1), iy1 = Math.max(y1,ky1);
+                    const ix2 = Math.min(x2,kx2), iy2 = Math.min(y2,ky2);
+                    if (ix2 > ix1 && iy2 > iy1) {
+                        const inter = (ix2-ix1)*(iy2-iy1);
+                        const a1 = (x2-x1)*(y2-y1), a2 = (kx2-kx1)*(ky2-ky1);
+                        if (inter / (a1 + a2 - inter) > iouThreshold) { isDup = true; break; }
+                    }
+                }
+                if (!isDup) kept.push(det);
+            }
+            return kept;
+        }
+
+        // Cluster detections into n player zones by x-coordinate
+        function clusterByX(detections, nPlayers, imageWidth) {
+            const zoneWidth = imageWidth / nPlayers;
+            const groups = Array.from({length: nPlayers}, () => []);
+            for (const det of detections) {
+                const cx = (det.xyxy[0] + det.xyxy[2]) / 2;
+                const zone = Math.min(Math.floor(cx / zoneWidth), nPlayers - 1);
+                groups[zone].push(det);
+            }
+            return groups;
+        }
+
+        // Scanner state
+        let scanState = {
+            file: null,
+            detections: [],      // filtered + deduped
+            imageWidth: 1280,
+            imageHeight: 720,
+            playerCards: {},     // playerId → [className, ...]
+            unassigned: [],      // [className, ...]
+            selectedCard: null,  // currently selected unassigned card
+        };
+
+        function openScanModal() {
+            resetScan();
+            openModal('modal-scan');
+        }
+
+        function resetScan() {
+            scanState = { file: null, detections: [], imageWidth: 1280, imageHeight: 720,
+                         playerCards: {}, unassigned: [], selectedCard: null };
+            document.getElementById('scan-step-1').style.display = 'block';
+            document.getElementById('scan-step-2').style.display = 'none';
+            document.getElementById('scan-loading').style.display = 'none';
+            document.getElementById('scan-error').style.display = 'none';
+            document.getElementById('scan-preview-wrap').style.display = 'none';
+            document.getElementById('scan-detect-btn').style.display = 'none';
+            document.getElementById('scan-file-input').value = '';
+        }
+
+        function handleScanFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            scanState.file = file;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.getElementById('scan-preview-img');
+                img.src = e.target.result;
+                img.onload = () => {
+                    scanState.imageWidth = img.naturalWidth || 1280;
+                    scanState.imageHeight = img.naturalHeight || 720;
+                };
+                document.getElementById('scan-preview-wrap').style.display = 'block';
+                document.getElementById('scan-file-name').textContent = file.name + ` (${(file.size/1024).toFixed(0)} KB)`;
+                document.getElementById('scan-detect-btn').style.display = 'block';
+                // Style drop zone
+                document.getElementById('scan-drop-zone').style.borderColor = 'var(--accent)';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function runDetection() {
+            if (!scanState.file) return;
+
+            document.getElementById('scan-step-1').style.display = 'none';
+            document.getElementById('scan-loading').style.display = 'block';
+            document.getElementById('scan-loading-msg').textContent = 'Skickar till YOLO-servern...';
+
+            try {
+                // First check server health
+                document.getElementById('scan-loading-msg').textContent = 'Kollar serverstatus...';
+                const healthRes = await fetch(`${YOLO_API}/health`, { signal: AbortSignal.timeout(5000) });
+                if (!healthRes.ok) throw new Error('Servern svarar inte');
+
+                // Send image
+                document.getElementById('scan-loading-msg').textContent = 'Analyserar kort...';
+                const formData = new FormData();
+                formData.append('file', scanState.file, 'scan.jpg');
+
+                const detectRes = await fetch(`${YOLO_API}/detect`, {
+                    method: 'POST',
+                    body: formData,
+                    signal: AbortSignal.timeout(30000),
+                });
+                if (!detectRes.ok) throw new Error(`Server returnerade ${detectRes.status}`);
+
+                const rawDetections = await detectRes.json();
+                if (!Array.isArray(rawDetections)) throw new Error('Oväntat svarsformat');
+
+                // Filter low confidence
+                const filtered = rawDetections.filter(d => d.conf >= YOLO_CONF_THRESHOLD);
+                // Deduplicate overlapping boxes
+                const deduped = deduplicateDetections(filtered);
+
+                if (deduped.length === 0) {
+                    throw new Error(`Inga kort hittades med confidence ≥ ${YOLO_CONF_THRESHOLD}. Prova bättre belysning eller håll korten mer åtskilda.`);
+                }
+
+                scanState.detections = deduped;
+
+                // Auto-cluster by player count and x-position
+                const pids = activeSession.player_ids || [];
+                const groups = clusterByX(deduped, pids.length, scanState.imageWidth);
+
+                // Pre-fill playerCards from spatial groups
+                scanState.playerCards = {};
+                pids.forEach((pid, i) => {
+                    scanState.playerCards[pid] = (groups[i] || []).map(d => d.class_name);
+                });
+                scanState.unassigned = [];
+
+                document.getElementById('scan-loading').style.display = 'none';
+                renderScanStep2(rawDetections.length, filtered.length, deduped.length);
+
+            } catch (err) {
+                document.getElementById('scan-loading').style.display = 'none';
+                document.getElementById('scan-error').style.display = 'block';
+                document.getElementById('scan-error-title').textContent =
+                    err.name === 'TimeoutError' ? 'Timeout — servern svarar inte' : 'Analys misslyckades';
+                document.getElementById('scan-error-msg').textContent = err.message;
+            }
+        }
+
+        function renderScanStep2(total, filtered, deduped) {
+            document.getElementById('scan-step-2').style.display = 'block';
+            document.getElementById('scan-detection-summary').textContent =
+                `${total} detektioner → ${filtered} efter conf-filter → ${deduped} unika kort`;
+
+            renderUnassigned();
+            renderPlayerZones();
+        }
+
+        function renderUnassigned() {
+            const wrap = document.getElementById('scan-unassigned-cards');
+            if (scanState.unassigned.length === 0) {
+                wrap.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px">Alla kort är tilldelade</div>';
+                return;
+            }
+            wrap.innerHTML = scanState.unassigned.map((card, idx) => {
+                const val = cardValue(card);
+                const color = val < 0 ? 'var(--green)' : val === 0 ? 'var(--text2)' : 'var(--accent2)';
+                const isSelected = scanState.selectedCard === card + '_' + idx;
+                return `<div class="chip ${isSelected ? 'selected' : ''}"
+                    style="font-size:13px;padding:6px 12px;${isSelected?'border-color:var(--accent);background:rgba(233,69,96,0.15)':''}"
+                    onclick="selectUnassignedCard('${card}', ${idx})">
+                    ${card} <span style="color:${color};font-size:11px">${val}p</span>
+                </div>`;
+            }).join('');
+        }
+
+        function renderPlayerZones() {
+            const pids = activeSession?.player_ids || [];
+            const wrap = document.getElementById('scan-player-zones');
+            wrap.innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                if (!p) return '';
+                const c = colorFor(p);
+                const cards = scanState.playerCards[pid] || [];
+                const pts = cards.reduce((a, card) => a + cardValue(card), 0);
+                const cardChips = cards.map((card, idx) => {
+                    const val = cardValue(card);
+                    const valColor = val < 0 ? 'var(--green)' : val === 0 ? 'var(--text2)' : 'var(--accent2)';
+                    return `<div class="chip" style="font-size:12px;padding:5px 10px;border-color:${c.hex}20"
+                        onclick="removeCardFromPlayer('${pid}', '${card}', ${idx})">
+                        ${card} <span style="color:${valColor};font-size:11px">${val}p</span>
+                        <span style="color:var(--text2);font-size:10px;margin-left:2px">✕</span>
+                    </div>`;
+                }).join('');
+                return `<div style="margin-bottom:12px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"
+                        onclick="assignSelectedToPlayer('${pid}')">
+                        ${avatarEl(p, 30)}
+                        <div style="flex:1;font-weight:600;font-size:14px">${p.name}</div>
+                        <div style="font-size:13px;color:${c.hex};font-weight:700">${pts}p · ${cards.length} kort</div>
+                    </div>
+                    <div style="min-height:36px;padding:8px;background:${c.dark};border-radius:10px;border:1px solid ${c.hex}30;display:flex;flex-wrap:wrap;gap:6px;align-items:center"
+                        onclick="assignSelectedToPlayer('${pid}')">
+                        ${cardChips || '<div style="color:var(--text2);font-size:12px">Tryck här för att tilldela valt kort</div>'}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectUnassignedCard(card, idx) {
+            scanState.selectedCard = card + '_' + idx;
+            renderUnassigned();
+        }
+
+        function assignSelectedToPlayer(pid) {
+            if (!scanState.selectedCard) { showToast('Välj ett kort ovan först'); return; }
+            const parts = scanState.selectedCard.split('_');
+            const card = parts.slice(0, -1).join('_');
+            const idx = parseInt(parts[parts.length - 1]);
+            // Remove from unassigned
+            scanState.unassigned.splice(idx, 1);
+            scanState.selectedCard = null;
+            // Add to player
+            if (!scanState.playerCards[pid]) scanState.playerCards[pid] = [];
+            scanState.playerCards[pid].push(card);
+            renderUnassigned();
+            renderPlayerZones();
+        }
+
+        function removeCardFromPlayer(pid, card, idx) {
+            scanState.playerCards[pid].splice(idx, 1);
+            scanState.unassigned.push(card);
+            renderUnassigned();
+            renderPlayerZones();
+        }
+
+        async function confirmScanRound() {
+            if (!activeSession) return;
+            const pids = activeSession.player_ids || [];
+
+            // Validate: all players have at least 0 cards (snap-out valid)
+            // Check no unassigned cards remain that should be assigned
+            const totalCards = pids.reduce((a, pid) => a + (scanState.playerCards[pid]||[]).length, 0);
+            const unassignedCount = scanState.unassigned.length;
+            if (unassignedCount > 0) {
+                const ok = await new Promise(r => {
+                    // Show inline confirm
+                    if (confirm(`${unassignedCount} kort är fortfarande otilldelade. Fortsätt ändå?`)) r(true);
+                    else r(false);
+                });
+                if (!ok) return;
+            }
+
+            // Build roundState from scan
+            const newScores = {}, newCardCounts = {};
+            pids.forEach(pid => {
+                const cards = scanState.playerCards[pid] || [];
+                newScores[pid] = cards.reduce((a, c) => a + cardValue(c), 0);
+                newCardCounts[pid] = cards.length;
+            });
+
+            // Pre-fill roundState and open the normal round modal for confirmation + special events
+            roundState.scores = newScores;
+            roundState.cardCounts = newCardCounts;
+            roundState.knock = false; roundState.knockPlayer = null; roundState.knockWin = null;
+            roundState.snapout = false; roundState.snapoutPlayer = null;
+            roundState.ev67 = false; roundState.ev67Player = null; roundState.ev67Type = null;
+            roundState.cuck = false; roundState.cuckPlayers = [];
+
+            closeModal('modal-scan');
+
+            // Open round modal with pre-filled values
+            const roundNum = allRounds.length + 1;
+            document.getElementById('round-modal-title').textContent = `Runda ${roundNum} (från scan)`;
+
+            // Build score inputs with pre-filled values
+            document.getElementById('round-score-inputs').innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                const c = colorFor(p);
+                const val = newScores[pid];
+                return `<div class="score-row">
+                    ${avatarEl(p, 36)}
+                    <div style="flex:1;margin-left:8px;font-weight:600">${p.name}</div>
+                    <div class="score-controls">
+                        <button class="stepper-btn" onclick="adjustScore('${pid}',-1)">−</button>
+                        <div class="score-val" id="sv-${pid}" style="color:${val===0?'var(--text2)':c.hex}">${val}</div>
+                        <button class="stepper-btn" onclick="adjustScore('${pid}',1)">+</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Build card count inputs with pre-filled values
+            document.getElementById('round-card-count-inputs').innerHTML = pids.map(pid => {
+                const p = getPlayer(pid);
+                const c = colorFor(p);
+                const cnt = newCardCounts[pid];
+                return `<div class="score-row">
+                    ${avatarEl(p, 36)}
+                    <div style="flex:1;margin-left:8px">
+                        <div style="font-weight:600">${p.name}</div>
+                        <div id="cc-hint-${pid}" style="font-size:11px;color:var(--text2);margin-top:2px">${
+                            cnt === 0 ? '⚡ Snap Out (auto)' : cnt === 2 ? 'Hard 6/7 möjlig' : ''
+                        }</div>
+                    </div>
+                    <div class="score-controls">
+                        <button class="stepper-btn" onclick="adjustCards('${pid}',-1)">−</button>
+                        <div class="score-val" id="cc-${pid}" style="color:${c.hex}">${cnt}</div>
+                        <button class="stepper-btn" onclick="adjustCards('${pid}',1)">+</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Reset event toggles
+            ['knock','67','cuck'].forEach(ev => {
+                const el = document.getElementById('ev-' + ev);
+                if (el) el.classList.remove('on');
+                const det = document.getElementById('ev-' + ev + '-detail');
+                if (det) det.style.display = 'none';
+            });
+            const cuckRow = document.getElementById('cuck-toggle-row');
+            if (cuckRow) cuckRow.style.display = (activeSession.rules?.cuck) ? 'flex' : 'none';
+            buildChips(pids, 'ev-knock-chips', 'setKnockPlayer');
+            buildChips(pids, 'ev-67-chips', 'set67Player', pid => (newCardCounts[pid]||0) >= 2);
+            buildCuckChips(pids);
+            const autoLabel = document.getElementById('chip-67-auto');
+            if (autoLabel) autoLabel.textContent = '';
+
+            // Show scan result summary at top of modal
+            const scannedCards = pids.map(pid => {
+                const p = getPlayer(pid);
+                const cards = scanState.playerCards[pid] || [];
+                return `${p?.name}: ${cards.join(', ') || '(inga)'}`;
+            }).join(' · ');
+            document.getElementById('round-modal-title').innerHTML =
+                `Runda ${roundNum} <div style="font-size:11px;color:var(--text2);font-weight:400;margin-top:2px">📷 ${scannedCards}</div>`;
+
+            openModal('modal-round');
         }
 
         // ============================================================
